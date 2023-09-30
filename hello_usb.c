@@ -9,6 +9,9 @@
 #include "hardware/pwm.h"
 #include "hardware/gpio.h"
 
+#include "VL53L1X_api.h"
+#include "VL53L1X_types.h"
+
 #define MOTOR_A_PIN (16)
 #define MOTOR_B_PIN (17)
 #define ENCODER_A_PIN (18)
@@ -21,6 +24,7 @@
 #define MEASURE_PERIOD_SEC (3)
 #define SEC_TO_uS (1000000)
 
+#define I2C_DEV_ADDR 0x29
 
 volatile uint32_t counter = 0;
 
@@ -49,6 +53,35 @@ bool timer_callback(repeating_timer_t *rt) {
 
 int main() {
     stdio_init_all();
+
+    // init tof sensor
+    VL53L1X_Status_t status;
+    VL53L1X_Result_t results;
+
+    printf("about to init.\n");
+  // GPIO sda=2, scl=3, i2c1
+  if (VL53L1X_I2C_Init(I2C_DEV_ADDR, i2c1) < 0) {
+      printf("Error initializing sensor.\n");
+      return 0;
+  }
+  printf("done init.\n");
+  // Ensure the sensor has booted
+  uint8_t sensorState;
+  do {
+    status += VL53L1X_BootState(I2C_DEV_ADDR, &sensorState);
+    VL53L1X_WaitMs(I2C_DEV_ADDR, 2);
+    printf("cmon\n");
+  } while (sensorState == 0);
+  printf("Sensor booted.\n");
+
+  // Initialize and configure sensor
+  status = VL53L1X_SensorInit(I2C_DEV_ADDR);
+  status += VL53L1X_SetDistanceMode(I2C_DEV_ADDR, 1);
+  status += VL53L1X_SetTimingBudgetInMs(I2C_DEV_ADDR, 100);
+  status += VL53L1X_SetInterMeasurementInMs(I2C_DEV_ADDR, 100);
+  status += VL53L1X_StartRanging(I2C_DEV_ADDR);
+
+  print("Done configuring sensor!\n");
 
     // Init motor output
     gpio_set_function(MOTOR_A_PIN, GPIO_FUNC_PWM);
@@ -79,6 +112,43 @@ int main() {
     //     printf("Setting duty cycle to %d/%d\n", level, WRAP);
     //     pwm_set_chan_level(slice, chan, level);
     // }
+
+    // Measure and print continuously
+  bool first_range = true;
+  int count = 1;
+  while (1) {
+    // Wait until we have new data
+    uint8_t dataReady;
+    do {
+      status = VL53L1X_CheckForDataReady(I2C_DEV_ADDR, &dataReady);
+      sleep_us(1);
+    } while (dataReady == 0);
+
+    // Read and display result
+    status += VL53L1X_GetResult(I2C_DEV_ADDR, &results);
+    printf("Status = %2d, dist = %5d\n", results.status, results.distance);
+
+    if (results.distance > 500) {
+        sleep_us(3 * 1000 * 1000);
+        pwm_set_chan_level(slice, chan, count * (WRAP/10));
+        count += 1
+
+        if (count == 10){
+          count = 1;
+        }
+    } else {
+        pwm_set_chan_level(slice, chan, 0);
+        count = 0;
+    }
+    // 80mm ~ pi inches
+    // Clear the sensor for a new measurement
+    status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
+    if (first_range) {  // Clear twice on first measurement
+      status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
+      first_range = false;
+    }
+    // sleep_ms(200);
+  }
 
     sleep_us(10 *1000 * 1000);
     pwm_set_chan_level(slice, chan, 1 * (WRAP/10));
