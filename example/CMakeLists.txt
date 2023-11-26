@@ -8,7 +8,7 @@ if (TARGET tinyusb_device)
                             hardware_gpio hardware_pwm hardware_i2c VL53L1X_pico_api hardware_adc pico_cyw43_arch_none)
 
     # Pull in the API
-    include(/Users/prathamdesai/Code/VL53L1X-C-API-for-Raspberry-Pi-Pico/library/import.cmake)
+    include(../library/import.cmake)
 
     # enable usb output, disable uart output
     pico_enable_stdio_usb(hello_usb 1)
