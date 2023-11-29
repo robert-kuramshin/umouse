@@ -15,8 +15,8 @@
 #include "VL53L1X_types.h"
 #include <math.h>
 
-#define RIGHT_MOTOR_A_PIN (14)
-#define RIGHT_MOTOR_B_PIN (15)
+#define RIGHT_MOTOR_A_PIN (15)
+#define RIGHT_MOTOR_B_PIN (14)
 #define RIGHT_ENCODER_A_PIN (12)
 #define RIGHT_ENCODER_B_PIN (13)
 
@@ -135,113 +135,81 @@ void tuneV2D() {
   }
 }
 
-float voltage2distance(float voltage){
-  
+float rightVoltage2Distance(float data) {
+// interpolate later, for now get crude dists
+  float m;
+  if (0.095 < data && data < 0.2) {
+    m = data - 0.095;
+    return 0.5 - m * 4.76;
+  } else if (0.062 < data && data < 0.095) {
+    m = data - 0.062;
+    return 1.0 - m * 15.15;
+  } else if (0.045 < data && data < 0.062) {
+    m = data - 0.045;
+    return 1.5 - m * 29.41;
+  }
+  return 2.0;
+}
+float leftVoltage2Distance(float data) {
+  float m;
+  if (0.05 < data && data < 0.07) {
+    m = data - 0.05;
+    return 0.5 - m * 25;
+  } else if (0.032 < data && data < 0.05) {
+    m = data - 0.032;
+    return 1.0 - m * 27.77;
+  } else if (0.0265 < data && data < 0.032) {
+    m = data - 0.0265;
+    return 1.5 - m * 90.9;
+  }
+  return 2.0;
 }
 
-int main() {
-  stdio_init_all();
-  adc_init();
-
-  if (cyw43_arch_init()) {
-        printf("Wi-Fi init failed");
-        return -1;
-    }
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-        sleep_ms(1000);
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-        sleep_ms(1000);
-
-  // Initialize adc pins
-  adc_gpio_init(RIGHT_ADC_PIN);
-  adc_gpio_init(LEFT_ADC_PIN);
-
-  // tuneV2D();
-  // return 1;
-  // init tof sensor
-  VL53L1X_Result_t results;
-  VL53L1X_Status_t status = tof_init();
-  printf("Done configuring sensor!\n");
-
-  // Init motor output right and left (both forward)
-  gpio_set_function(RIGHT_MOTOR_A_PIN, GPIO_FUNC_PWM);
-  gpio_set_function(RIGHT_MOTOR_B_PIN, GPIO_FUNC_PWM);
-  gpio_set_function(LEFT_MOTOR_A_PIN, GPIO_FUNC_PWM);
-  gpio_set_function(LEFT_MOTOR_B_PIN, GPIO_FUNC_PWM);
-
-  gpio_pull_up(RIGHT_ENCODER_A_PIN);
-
-  gpio_pull_up(RIGHT_ENCODER_B_PIN);
-  gpio_pull_up(LEFT_ENCODER_A_PIN);
-  gpio_pull_up(LEFT_ENCODER_B_PIN);
-  gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_b);
-  // basic_sequence_test();
-  printf("Freq %d\n", 125000000/WRAP);
-
-  //Init interrupts
-  // gpio_set_irq_enabled_with_callback(ENCODER_A_PIN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback_a);
-  
-
-  // Repeating timer
-  repeating_timer_t timer;
-  add_repeating_timer_us(-1 * MEASURE_PERIOD_SEC * SEC_TO_uS, timer_callback,NULL, &timer);
-    // while (true) {
-    //     char c = getchar_timeout_us(100);
-    //     if (c < 0 || c>=255) {
-    //         continue;
-    //     }
-    //     int digit = c - 48;
-    //     if (digit < 0 || digit > 10) {
-    //         continue;
-    //     }
-    //     uint level =  digit * (WRAP/10);
-    //     printf("Setting duty cycle to %d/%d\n", level, WRAP);
-    //     pwm_set_chan_level(slice, chan, level);
-    // }
-  bool first_range = true;
-  int min_distance = 50;
-  int duty;
-  int count = 1;
-  while (true) {
-    // Wait until we have new data (front distance)
-    uint8_t dataReady;
-    do {
-      status = VL53L1X_CheckForDataReady(I2C_DEV_ADDR, &dataReady);
-      sleep_us(1);
-    } while (dataReady == 0);
-
-    // Get right distance
-    float right_data = adcData(RIGHT_ADC_INDEX);
-
-    // Get left distance
-    float left_data = adcData(LEFT_ADC_INDEX);
-
-    // Read and display result
-    status += VL53L1X_GetResult(I2C_DEV_ADDR, &results);
-    printf("Status = %2d, dist = %5d, rightV = %f, leftV = %f\n", results.status, 0, right_data, left_data);
-    // int scale = 1000;
-    // int error = (results.distance - min_distance) / scale;
-    // if (error > 1) {
-    //   error = 1;
-    // } else if (error < 0) {
-    //   error = 0;
-    // }
-    // float duty_scale = 60;
-    // duty = duty_scale * error;
-    // if (error > 0) {
-    //   goForward(duty);
-    // } else {
-    //   turn_right(60);
-    // }
-    // 80mm ~ pi inches
-    // Clear the sensor for a new measurement
-    status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
-    if (first_range) {  // Clear twice on first measurement
-      status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
-      first_range = false;
-    }
-    sleep_ms(500);
+void center_logic(uint16_t front_dist, float right_dist, float left_dist) {
+  // take distance measurements and send motor commands to keep center
+  // lets say right and left distance max is 1.5 inches
+  int duty = 60;
+  float tolerance = 0.2;
+  float delta = right_dist - left_dist;
+  printf("Delta:%f\n", delta);
+  int sign = delta < 0 ? -1 : 1;
+  delta = abs(delta);
+  if (delta < tolerance) {
+    // do nothing, we're centered
+    goForward(duty);
+    ;
   }
+  // if delta > tol and sign == -1 -> increase duty in right wheel
+  else if (sign == -1) {
+    runRightMotor(duty + 10, 250);
+  } else if (sign == 1) {
+    runLeftMotor(duty + 10, 250);
+  }
+}
+
+void runRightMotor(int duty, float duration) {
+  printf("run motor");
+  uint rslice;
+  uint rchan;
+  rslice = pwm_gpio_to_slice_num(RIGHT_MOTOR_A_PIN);
+  rchan = pwm_gpio_to_channel(RIGHT_MOTOR_A_PIN);
+  pwm_set_enabled(rslice, true);
+  pwm_set_wrap(rslice, WRAP);
+  pwm_set_duty(rslice, rchan, duty);
+  sleep_ms(duration);
+  // pwm_set_duty(rslice, rchan, 0);
+}
+
+void runLeftMotor(int duty, float duration) {
+  uint lslice;
+  uint lchan;
+  lslice = pwm_gpio_to_slice_num(LEFT_MOTOR_A_PIN);
+  lchan = pwm_gpio_to_channel(LEFT_MOTOR_A_PIN);
+  pwm_set_enabled(lslice, true);
+  pwm_set_wrap(lslice, WRAP);
+  pwm_set_duty(lslice, lchan, duty);
+  sleep_ms(duration);
+  // pwm_set_duty(lslice, lchan, 0);
 }
 
 // 0 <= duty <= 100
@@ -397,3 +365,108 @@ void counter_total_zero_test()
   goBackward(0);
 }
 
+int main() {
+  stdio_init_all();
+  adc_init();
+
+  if (cyw43_arch_init()) {
+        printf("Wi-Fi init failed");
+        return -1;
+    }
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        sleep_ms(1000);
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+        sleep_ms(1000);
+
+  // Initialize adc pins
+  adc_gpio_init(RIGHT_ADC_PIN);
+  adc_gpio_init(LEFT_ADC_PIN);
+
+  // tuneV2D();
+  // return 1;
+  // init tof sensor
+  VL53L1X_Result_t results;
+  VL53L1X_Status_t status = tof_init();
+  printf("Done configuring sensor!\n");
+
+  // // Init motor output right and left (both forward)
+  gpio_set_function(RIGHT_MOTOR_A_PIN, GPIO_FUNC_PWM);
+  gpio_set_function(RIGHT_MOTOR_B_PIN, GPIO_FUNC_PWM);
+  gpio_set_function(LEFT_MOTOR_A_PIN, GPIO_FUNC_PWM);
+  gpio_set_function(LEFT_MOTOR_B_PIN, GPIO_FUNC_PWM);
+
+  gpio_pull_up(RIGHT_ENCODER_A_PIN);
+  gpio_pull_up(RIGHT_ENCODER_B_PIN);
+  gpio_pull_up(LEFT_ENCODER_A_PIN);
+  gpio_pull_up(LEFT_ENCODER_B_PIN);
+  // gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_b);
+  // // basic_sequence_test();
+  // printf("Freq %d\n", 125000000/WRAP);
+
+  //Init interrupts
+  // gpio_set_irq_enabled_with_callback(ENCODER_A_PIN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback_a);
+  
+
+  // Repeating timer
+  repeating_timer_t timer;
+  add_repeating_timer_us(-1 * MEASURE_PERIOD_SEC * SEC_TO_uS, timer_callback,NULL, &timer);
+    // while (true) {
+    //     char c = getchar_timeout_us(100);
+    //     if (c < 0 || c>=255) {
+    //         continue;
+    //     }
+    //     int digit = c - 48;
+    //     if (digit < 0 || digit > 10) {
+    //         continue;
+    //     }
+    //     uint level =  digit * (WRAP/10);
+    //     printf("Setting duty cycle to %d/%d\n", level, WRAP);
+    //     pwm_set_chan_level(slice, chan, level);
+    // }
+  bool first_range = true;
+  int min_distance = 50;
+  int duty;
+  int count = 1;
+  while (true) {
+    // Wait until we have new data (front distance)
+    uint8_t dataReady;
+    do {
+      status = VL53L1X_CheckForDataReady(I2C_DEV_ADDR, &dataReady);
+      sleep_us(1);
+    } while (dataReady == 0);
+
+    // Get right distance
+    float right_data = rightVoltage2Distance(adcData(RIGHT_ADC_INDEX));
+
+    // Get left distance
+    float left_data = leftVoltage2Distance(adcData(LEFT_ADC_INDEX));
+
+    // Read and display result
+    status += VL53L1X_GetResult(I2C_DEV_ADDR, &results);
+    printf("Status = %2d, dist = %5d, rightV = %f, leftV = %f\n", results.status, results.distance, right_data, left_data);
+    center_logic(results.distance, right_data, left_data);
+    
+    // int scale = 1000;
+    // int error = (results.distance - min_distance) / scale;
+    // if (error > 1) {
+    //   error = 1;
+    // } else if (error < 0) {
+    //   error = 0;
+    // }
+    // float duty_scale = 60;
+    // duty = duty_scale * error;
+    // if (error > 0) {
+    //   goForward(duty);
+    // } else {
+    //   turn_right(60);
+    // }
+    // 80mm ~ pi inches
+    // Clear the sensor for a new measurement
+    status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
+    if (first_range) {  // Clear twice on first measurement
+      status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
+      first_range = false;
+    }
+    sleep_ms(500);
+  }
+}
