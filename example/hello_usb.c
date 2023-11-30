@@ -15,22 +15,15 @@
 #include "VL53L1X_types.h"
 #include <math.h>
 
-#define RIGHT_MOTOR_A_PIN (15)
-#define RIGHT_MOTOR_B_PIN (14)
-#define RIGHT_ENCODER_A_PIN (12)
-#define RIGHT_ENCODER_B_PIN (13)
+#include "encoders.h"
 
-#define LEFT_MOTOR_A_PIN (0)
-#define LEFT_MOTOR_B_PIN (1)
-#define LEFT_ENCODER_A_PIN (2)
-#define LEFT_ENCODER_B_PIN (3)
+#define RIGHT_MOTOR_A_PIN (14)
+#define RIGHT_MOTOR_B_PIN (15)
+
+#define LEFT_MOTOR_A_PIN (1)
+#define LEFT_MOTOR_B_PIN (0)
 
 #define WRAP (50000)
-
-#define COUNTS_PER_REV (12)
-#define SECONDS_PER_MIN (60)
-#define MEASURE_PERIOD_SEC (3)
-#define SEC_TO_uS (1000000)
 
 #define I2C_DEV_ADDR 0x29
 
@@ -56,25 +49,6 @@ uint lrchan;
 //     printf("event A\n");
 // }
 
-void gpio_callback_b(uint gpio, uint32_t events)
-{
-  // printf("event B\n");
-  if (events & GPIO_IRQ_EDGE_FALL)
-  {
-    counter += 1;
-  }
-}
-
-bool timer_callback(repeating_timer_t *rt)
-{
-  uint32_t count = counter;
-  counter = 0;
-
-  uint32_t rpm = (count * (SECONDS_PER_MIN / MEASURE_PERIOD_SEC)) / COUNTS_PER_REV;
-
-  printf("RPM: %d COUNT: %d \n", rpm, count);
-  return true; // keep repeating
-}
 
 VL53L1X_Status_t tof_init()
 {
@@ -329,6 +303,8 @@ int main()
   gpio_pull_up(RIGHT_ENCODER_B_PIN);
   gpio_pull_up(LEFT_ENCODER_A_PIN);
   gpio_pull_up(LEFT_ENCODER_B_PIN);
+
+  encoders_register_callbacks();
   
   // gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_b);
   // // basic_sequence_test();
@@ -384,8 +360,8 @@ int main()
       status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
       first_range = false;
     }
-    center_logic(results.distance, right_dist, left_dist);
-    //goForward(65);
+    // center_logic(results.distance, right_dist, left_dist);
+    goForward(100);
     //moveRightMotor(100, 1);
     sleep_ms(1000);
   }
