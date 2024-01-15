@@ -5,7 +5,7 @@ if (TARGET tinyusb_device)
 
     # pull in common dependencies
     target_link_libraries(hello_usb  pico_stdlib
-                            hardware_gpio hardware_pwm hardware_i2c VL53L1X_pico_api hardware_adc pico_cyw43_arch_none)
+                            hardware_gpio hardware_pwm hardware_i2c VL53L1X_pico_api hardware_adc pico_cyw43_arch_none pico_multicore)
 
     # Pull in the API
     include(/Users/prathamdesai/Code/VL53L1X-C-API-for-Raspberry-Pi-Pico/library/import.cmake)

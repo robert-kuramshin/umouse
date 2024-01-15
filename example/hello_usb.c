@@ -10,18 +10,19 @@
 #include "hardware/gpio.h"
 #include "hardware/adc.h"
 #include "pico/cyw43_arch.h"
+#include "pico/multicore.h"
 
 #include "VL53L1X_api.h"
 #include "VL53L1X_types.h"
 #include <math.h>
 
-#define RIGHT_MOTOR_A_PIN (15)
-#define RIGHT_MOTOR_B_PIN (14)
+#define RIGHT_MOTOR_A_PIN (14)
+#define RIGHT_MOTOR_B_PIN (15)
 #define RIGHT_ENCODER_A_PIN (12)
 #define RIGHT_ENCODER_B_PIN (13)
 
-#define LEFT_MOTOR_A_PIN (0)
-#define LEFT_MOTOR_B_PIN (1)
+#define LEFT_MOTOR_A_PIN (1)
+#define LEFT_MOTOR_B_PIN (0)
 #define LEFT_ENCODER_A_PIN (2)
 #define LEFT_ENCODER_B_PIN (3)
 
@@ -44,6 +45,9 @@
 
 volatile uint32_t counter = 0;
 
+volatile uint16_t tof_distance = 50;
+
+bool moving = true;
 // motor slices and f/r channels
 uint rslice;
 uint rfchan;
@@ -158,18 +162,46 @@ void center_logic(uint16_t front_dist, float right_dist, float left_dist)
 {
   // take distance measurements and send motor commands to keep center
   // lets say right and left distance max is 1.5 inches
-  int duty = 60;
+  int duty = 25;
+  int turnmag = 7;
   float tolerance = 0.2;
   float delta = right_dist - left_dist;
-  printf("Delta:%f\n", delta);
-  int sign = delta < 0 ? -1 : 1;
-  delta = abs(delta);
-
-  if (front_dist <= 30) {
-    goForward(0);
+  // printf("Delta:%f\n", delta);
+  int sign = 0;
+  if (left_dist < 1.9 & right_dist < 1.9) {
+    sign = 2;
+  }
+  if (left_dist < 1.9) {
+    sign = 1;
+  } else if (right_dist < 1.9) {
+    sign = -1;
+  } else {
+    sign = 0;
+  }
+  
+  if (front_dist <= 50) {
+    // attempt a right turn;
+    // if (left_dist == 2.0 && right_dist < 2.0){
+    //   float curr_dist = right_dist;
+    //   moveRightMotor(40, 1);
+    //   moveLeftMotor(40, -1);
+    //   while (curr_dist <= right_dist + 0.2 || curr_dist >= right_dist - 0.2){
+    //     right_dist = rightVoltage2Distance(adcData(RIGHT_ADC_PIN));
+    //   }
+    //   // done turn, stop the vehicle;
+    //   // goForward(0);
+    // }
+    brake(100);
+    moving = false;
   }
    else {
-    if (delta < tolerance)
+    if (!moving) {
+      goForward(100);
+      sleep_ms(100);
+      //sleep_ms(150);
+    }
+    moving = true;
+    if (sign == 0 || sign == 2)
   {
     // do nothing, we're centered
     goForward(duty);
@@ -177,11 +209,15 @@ void center_logic(uint16_t front_dist, float right_dist, float left_dist)
   // if delta > tol and sign == -1 -> increase duty in right wheel
   else if (sign == -1)
   {
-    moveRightMotor(duty + 10, 1);
+    moveRightMotor(32, 1);
+    moveLeftMotor(23, 1);
+    // moving = false;
   }
   else if (sign == 1)
   {
-    moveLeftMotor(duty + 10, 1);
+    moveRightMotor(23, 1);
+    moveLeftMotor(32, 1);
+    // moving = false;
   }
    }
 }
@@ -224,6 +260,11 @@ void moveRightMotor(int duty, int direction) {
       pwm_set_duty(rslice, rrchan, duty);
       pwm_set_duty(rslice, rfchan, 0);
     }
+     else if (direction == 0) {
+      pwm_set_duty(rslice, rrchan, duty);
+      pwm_set_duty(rslice, rfchan, duty);
+     }
+
     else
     {
       // neutral?
@@ -245,12 +286,21 @@ void moveLeftMotor(int duty, int direction)
       pwm_set_duty(lslice, lrchan, duty);
       pwm_set_duty(lslice, lfchan, 0);
     }
+    else if (direction == 0) {
+      pwm_set_duty(lslice, lrchan, duty);
+      pwm_set_duty(lslice, lfchan, duty);
+     }
     else
     {
       // neutral?
       pwm_set_duty(lslice, lrchan, 0);
       pwm_set_duty(lslice, lfchan, 0);
     }
+}
+
+void brake(int duty){
+  moveRightMotor(duty, 0);
+  moveLeftMotor(duty, 0);
 }
 
 void goForward(int duty)
@@ -298,6 +348,38 @@ void counter_total_zero_test()
   goBackward(0);
 }
 
+void core1_entry() {
+  // init tof sensor
+  VL53L1X_Result_t results;
+  VL53L1X_Status_t status = tof_init();
+  printf("Done configuring sensor!\n");
+  bool first_range = true;
+  while (true) {
+    // Wait until we have new data (front distance)
+    uint8_t dataReady;
+    do
+    {
+      status = VL53L1X_CheckForDataReady(I2C_DEV_ADDR, &dataReady);
+      sleep_us(1);
+    } while (dataReady == 0);
+
+     // Read and display result
+    status += VL53L1X_GetResult(I2C_DEV_ADDR, &results);
+
+    if (results.distance > 10) {
+      tof_distance = results.distance;
+    }
+    printf("Core 1 TOF distance: %5d\n", tof_distance);
+
+    status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
+    if (first_range)
+    { // Clear twice on first measurement
+      status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
+      first_range = false;
+    }
+}
+}
+
 int main()
 {
   stdio_init_all();
@@ -319,9 +401,12 @@ int main()
   adc_gpio_init(LEFT_ADC_PIN);
   
   // init tof sensor
-  VL53L1X_Result_t results;
-  VL53L1X_Status_t status = tof_init();
-  printf("Done configuring sensor!\n");
+  // VL53L1X_Result_t results;
+  // VL53L1X_Status_t status = tof_init();
+  // printf("Done configuring sensor!\n");
+
+  multicore_launch_core1(core1_entry);
+
 
   // // Init motor output right and left (both forward)
   initMotors();
@@ -335,7 +420,7 @@ int main()
   // printf("Freq %d\n", 125000000/WRAP);
 
   // Init interrupts
-  //  gpio_set_irq_enabled_with_callback(ENCODER_A_PIN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback_a);
+  // gpio_set_irq_enabled_with_callback(ENCODER_A_PIN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback_a);
 
   // Repeating timer
   repeating_timer_t timer;
@@ -358,35 +443,17 @@ int main()
   int count = 1;
   while (true)
   {
-    // Wait until we have new data (front distance)
-    uint8_t dataReady;
-    do
-    {
-      status = VL53L1X_CheckForDataReady(I2C_DEV_ADDR, &dataReady);
-      sleep_us(1);
-    } while (dataReady == 0);
-
     // Get right distance
-    float right_dist = rightVoltage2Distance(adcData(RIGHT_ADC_INDEX));
+    float right_dist = rightVoltage2Distance(adcData((RIGHT_ADC_INDEX)));
 
     // Get left distance
     float left_dist = leftVoltage2Distance(adcData(LEFT_ADC_INDEX));
 
-    // Read and display result
-    status += VL53L1X_GetResult(I2C_DEV_ADDR, &results);
-    printf("Status = %2d, dist = %5d, rightDist = %f, leftDist = %f\n", results.status, results.distance, right_dist, left_dist);
-    
+    //printf(" dist = %5d, rightDist = %f, leftDist = %f\n",tof_distance, right_dist, left_dist);
+
     // 80mm ~ pi inches
-    // Clear the sensor for a new measurement
-    status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
-    if (first_range)
-    { // Clear twice on first measurement
-      status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
-      first_range = false;
-    }
-    center_logic(results.distance, right_dist, left_dist);
-    //goForward(65);
-    //moveRightMotor(100, 1);
-    sleep_ms(1000);
+    printf("Core 2 TOF distance: %5d\n", tof_distance);
+    center_logic(tof_distance, right_dist, left_dist);
+    // sleep_ms(1000);
   }
 }
