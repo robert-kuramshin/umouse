@@ -19,6 +19,7 @@
 #include <math.h>
 
 #include "encoders.h"
+#include "map.h"
 
 #define RIGHT_MOTOR_A_PIN (14)
 #define RIGHT_MOTOR_B_PIN (15)
@@ -143,22 +144,38 @@ float leftVoltage2Distance(float data)
   return 2.0;
 }
 
+void updateOdom()
+{
+  float dist = encoders_distance_traveled();
+  mouseUpdateOdom(dist);
+  encoders_zero_distances();
+  printMaze();
+}
+
 void center_logic(uint16_t front_dist, float right_dist, float left_dist)
 {
   int duty = 25;
   float tolerance = 0.2;
   float delta = right_dist - left_dist;
   // printf("Delta:%f\n", delta);
-  if (front_dist <= 100 && moving) // this is what is causing the jittery continuous turns
+  if (front_dist <= 100) // this is what is causing the jittery continuous turns
   {
     brake(100);
     moving = false;
+    updateOdom();
     if (right_dist >= 2) {
       // add a right gap to wall
+      mouseUpdateWall(-1,DRIGHT);
+    } else {
+      mouseUpdateWall(1,DRIGHT);
     }
     if (left_dist >= 2) {
       // add a left gap to wall
+      mouseUpdateWall(-1,DLEFT);
+    } else {
+      mouseUpdateWall(1,DLEFT);
     }
+    mouseUpdateWall(1, DFORWARD);
   }
   else
   {
@@ -341,7 +358,7 @@ void core1_entry()
     {
       tof_distance = results.distance;
     }
-    printf("Core 1 TOF distance: %5d\n", tof_distance);
+    // printf("Core 1 TOF distance: %5d\n", tof_distance);
 
     status += VL53L1X_ClearInterrupt(I2C_DEV_ADDR);
     if (first_range)
@@ -391,8 +408,6 @@ int main()
   // gpio_set_irq_enabled_with_callback(ENCODER_A_PIN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback_a);
 
   // Repeating timer
-  repeating_timer_t timer;
-  add_repeating_timer_us(-1 * MEASURE_PERIOD_SEC * SEC_TO_uS, timer_callback, NULL, &timer);
   float prev_right_avg = 0.0f;
   float prev_left_avg = 0.0f;
   q[0] = 'R'; // start off going R
@@ -429,6 +444,7 @@ int main()
     //   }
     //   right_avg /= 5;
     //   left_avg /= 5;
+    //   updateOdom();
     //   if (right_avg - prev_right_avg > 0.1)
     //   {
     //     // add gap to right side of the map
@@ -436,6 +452,7 @@ int main()
     //   }
     //   else
     //   {
+    //     mouseUpdateWall(1,DRIGHT);
     //     // add a right wall to map
     //   }
     //   if (left_avg - prev_left_avg > 0.1)
@@ -444,12 +461,13 @@ int main()
     //   }
     //   else
     //   {
+    //     mouseUpdateWall(1,DLEFT);
     //     // add a left wall to map
     //   }
     // }
     // 80mm ~ pi inches
     // printf("Core 2 TOF distance: %5d\n", tof_distance);
-    printf(" dist = %5d, rightDist = %f, leftDist = %f\n", tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
+    // printf(" dist = %5d, rightDist = %f, leftDist = %f\n", tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
     center_logic(tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
     if (!moving)
     {
@@ -464,6 +482,7 @@ int main()
           turn_right(40);
           sleep_ms(200);
           brake(100);
+          mouseUpdateDir(DRIGHT);
         }
         else if (next_action == 'L')
         {
@@ -471,6 +490,7 @@ int main()
           turn_left(50);
           sleep_ms(300);
           brake(100);
+          mouseUpdateDir(DLEFT);
         }
         else if (next_action == 'T')
         {
@@ -478,8 +498,12 @@ int main()
           turn_right(30);
           sleep_ms(600);
           brake(100);
+          mouseUpdateDir(DRIGHT);
+          mouseUpdateDir(DRIGHT);
         }
       }
+      // zero encoders after turn
+      encoders_zero_distances();
     }
   }
 }

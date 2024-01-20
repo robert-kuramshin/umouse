@@ -1,7 +1,12 @@
 #include "map.h"
 
-// assumes pos at 0,0 facing right
-state_t g_state = {0}; // global micrmomouse state
+float h_walls[MAZE_HEIGHT-1][MAZE_WIDTH-1] = {0};
+float v_walls[MAZE_HEIGHT-1][MAZE_WIDTH-1] = {0};
+
+// assumes pos at 0,0 facing right, middle of cell
+state_t g_state = {
+    DRIGHT,0,0,CELL_WIDHT_MM/2
+}; // global micrmomouse state
 
 void printMaze()
 {
@@ -31,6 +36,17 @@ state_t mouseGetState()
 // dir -> DLEFT, DRIGHT, Forawrd. Confidence -> [0,1]
 void mouseUpdateWall(float confidence, int dir)
 {
+    if (confidence > 0)
+    {
+        printf("voting wall to the ");
+    } else {
+        printf("voting gap to the ");
+    }
+    if (dir == DRIGHT) {
+        printf("right\n");
+    } else {
+        printf("left\n");
+    }
     int x = g_state.x;
     int y = g_state.y;
     int facing = g_state.or ;

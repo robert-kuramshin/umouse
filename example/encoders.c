@@ -16,7 +16,7 @@ bool timer_callback(repeating_timer_t *rt);
 void encoders_register_callbacks(void)
 {
     printf("registering encoder callbacks\n");
-    add_repeating_timer_us(-1 * MEASURE_PERIOD_SEC * SEC_TO_uS, timer_callback,NULL, &timer);
+    // add_repeating_timer_us(-1 * MEASURE_PERIOD_SEC * SEC_TO_uS, timer_callback,NULL, &timer);
 
     gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_A_PIN, GPIO_IRQ_MASK, true, &encoder_callback);
     gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_MASK, true, &encoder_callback);
