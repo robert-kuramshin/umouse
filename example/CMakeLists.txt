@@ -2,6 +2,7 @@ if (TARGET tinyusb_device)
     add_executable(hello_usb
             hello_usb.c
             encoders.c
+            map.c
             )
 
     # pull in common dependencies
