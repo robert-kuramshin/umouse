@@ -5,10 +5,8 @@
 
 #include "encoders.h"
 
-volatile uint32_t right_a_count = 0;
-volatile uint32_t right_b_count = 0;
-volatile uint32_t left_a_count = 0;
-volatile uint32_t left_b_count = 0;
+volatile uint32_t right_count = 0;
+volatile uint32_t left_count = 0;
 
 repeating_timer_t timer;
 
@@ -20,29 +18,29 @@ void encoders_register_callbacks(void)
     printf("registering encoder callbacks\n");
     add_repeating_timer_us(-1 * MEASURE_PERIOD_SEC * SEC_TO_uS, timer_callback,NULL, &timer);
 
-    gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_A_PIN, GPIO_IRQ_EDGE_FALL, true, &encoder_callback);
-    gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_EDGE_FALL, true, &encoder_callback);
-    gpio_set_irq_enabled_with_callback(LEFT_ENCODER_A_PIN, GPIO_IRQ_EDGE_FALL, true, &encoder_callback);
-    gpio_set_irq_enabled_with_callback(LEFT_ENCODER_B_PIN, GPIO_IRQ_EDGE_FALL, true, &encoder_callback);
+    gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_A_PIN, GPIO_IRQ_MASK, true, &encoder_callback);
+    gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_MASK, true, &encoder_callback);
+    gpio_set_irq_enabled_with_callback(LEFT_ENCODER_A_PIN, GPIO_IRQ_MASK, true, &encoder_callback);
+    gpio_set_irq_enabled_with_callback(LEFT_ENCODER_B_PIN, GPIO_IRQ_MASK, true, &encoder_callback);
 }
 
 void encoder_callback(uint gpio, uint32_t events)
 {
-  if (events & GPIO_IRQ_EDGE_FALL)
+  if (events & GPIO_IRQ_MASK)
   {
     switch(gpio)
     {
         case RIGHT_ENCODER_A_PIN:
-        right_a_count++;
+        right_count++;
         break;
         case RIGHT_ENCODER_B_PIN:
-        right_b_count++;
+        right_count++;
         break;
         case LEFT_ENCODER_A_PIN:
-        left_a_count++;
+        left_count++;
         break;
         case LEFT_ENCODER_B_PIN:
-        left_b_count++;
+        left_count++;
         break;
     }
   }
@@ -50,10 +48,8 @@ void encoder_callback(uint gpio, uint32_t events)
 
 void encoders_zero_distances(void)
 {
-    right_a_count=0;
-    right_b_count=0;
-    left_a_count=0;
-    left_b_count=0;
+    right_count=0;
+    left_count=0;
 }
 
 inline float counts_to_mm(uint32_t count)
@@ -64,35 +60,28 @@ inline float counts_to_mm(uint32_t count)
 
 float encoders_distance_traveled(void)
 {
-    float dist_ra, dist_rb, dist_la, dist_lb;
-    dist_ra = counts_to_mm(right_a_count);
-    dist_rb = counts_to_mm(right_b_count);
-    dist_la = counts_to_mm(left_a_count);
-    dist_lb = counts_to_mm(left_b_count);
+    float dist_r, dist_l;
+    dist_r = counts_to_mm(right_count);
+    dist_l = counts_to_mm(left_count);
 
-    return (dist_ra + dist_rb + dist_la + dist_lb) / 4;
+    return (dist_r + dist_l) / 2;
 }
 
 bool timer_callback(repeating_timer_t *rt)
 {
 
-  float dist_ra, dist_rb, dist_la, dist_lb;
-  dist_ra = counts_to_mm(right_a_count);
-  dist_rb = counts_to_mm(right_b_count);
-  dist_la = counts_to_mm(left_a_count);
-  dist_lb = counts_to_mm(left_b_count);
+  float dist_r, dist_l;
+  dist_r = counts_to_mm(right_count);
+  dist_l = counts_to_mm(left_count);
 
-  int rpm_ra, rpm_rb, rpm_la, rpm_lb;
-  rpm_ra = right_a_count / COUNTS_PER_REV * 60;
-  rpm_rb = right_b_count / COUNTS_PER_REV * 60;
-  rpm_la = left_a_count / COUNTS_PER_REV * 60;
-  rpm_lb = left_b_count / COUNTS_PER_REV * 60;
-//   uint32_t rpm = (count * (SECONDS_PER_MIN / MEASURE_PERIOD_SEC)) / COUNTS_PER_REV;
+  int rpm_r, rpm_l;
+  rpm_r = right_count / COUNTS_PER_REV * (SECONDS_PER_MIN/MEASURE_PERIOD_SEC);
+  rpm_l = left_count / COUNTS_PER_REV * (SECONDS_PER_MIN/MEASURE_PERIOD_SEC);
 
-  printf("rpm: %d %d %d %d \n", rpm_ra, rpm_rb, rpm_la, rpm_lb);
-  // printf("counts: %d %d %d %d \n", right_a_count, right_b_count, left_a_count, left_b_count);
-  // printf("DISTS: %.1fmm %.1fmm %.1fmm %.1fmm \n", dist_ra, dist_rb, dist_la, dist_lb);
+  printf("rpm: %d %d \n", rpm_r, rpm_l);
+  printf("counts: %ld %ld \n", right_count, left_count);
+  printf("DISTS: %.1fmm %.1fmm \n", dist_r, dist_l);
 
-  encoders_zero_distances();
+  // encoders_zero_distances();
   return true; // keep repeating
 }
