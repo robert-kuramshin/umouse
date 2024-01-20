@@ -5,21 +5,36 @@ float v_walls[MAZE_HEIGHT-1][MAZE_WIDTH-1] = {0};
 
 // assumes pos at 0,0 facing right, middle of cell
 state_t g_state = {
-    DRIGHT,0,0,CELL_WIDHT_MM/2
+    DRIGHT,5,5,CELL_WIDHT_MM/2
 }; // global micrmomouse state
 
 void printMaze()
 {
     printf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%d\n",
            g_state.x, g_state.y, g_state.or, g_state.dist_in_cell_mm);
-    // for (int x = 0; x< MAZE_HEIGHT-1;x++)
-    // {
-    //     for(int y = 0; y < MAZE_WIDTH-1;y++)
-    //     {
-    //         //print vertication
-    //         //print horizontal
-    //     }
-    // }
+    for (int x = 0; x< MAZE_HEIGHT-1;x++)
+    {
+        printf("v|");
+        for(int y = 0; y < MAZE_WIDTH-1;y++)
+        {
+            //print vertication
+            if (x == g_state.x && y == g_state.y)
+            {
+                printf("X");
+            }
+            printf(" %2.0f", v_walls[x][y]);
+        }
+        printf("\n");
+        printf("h_ ");
+        for(int y = 0; y < MAZE_WIDTH-1;y++)
+        {
+            //print vertication
+            printf("%2.0f ", h_walls[x][y]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+    printf("\n");
 }
 /*
  - - - - -
@@ -44,8 +59,10 @@ void mouseUpdateWall(float confidence, int dir)
     }
     if (dir == DRIGHT) {
         printf("right\n");
-    } else {
+    } else if (dir == DLEFT){
         printf("left\n");
+    } else if (dir == DFORWARD) {
+        printf("ahead\n");
     }
     int x = g_state.x;
     int y = g_state.y;
@@ -128,7 +145,7 @@ void mouseUpdateDir(int dir)
 {
     if (dir == DRIGHT)
     {
-        g_state.or = (g_state.or +1) % 4;
+        g_state.or = (g_state.or + 1) % 4;
     }
     else
     {

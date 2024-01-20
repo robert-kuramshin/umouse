@@ -149,7 +149,7 @@ void updateOdom()
   float dist = encoders_distance_traveled();
   mouseUpdateOdom(dist);
   encoders_zero_distances();
-  printMaze();
+  // printMaze();
 }
 
 void center_logic(uint16_t front_dist, float right_dist, float left_dist)
@@ -208,7 +208,7 @@ void center_logic(uint16_t front_dist, float right_dist, float left_dist)
 // 0 <= duty <= 100
 void pwm_set_duty(uint slice_num, uint chan, int duty)
 {
-  pwm_set_chan_level(slice_num, chan, duty * WRAP / 100);
+  // pwm_set_chan_level(slice_num, chan, duty * WRAP / 100);
 }
 
 void initMotors()
@@ -449,6 +449,7 @@ int main()
     //   {
     //     // add gap to right side of the map
     //     // mouseUpdateWall();
+    //     mouseUpdateWall(-1,DRIGHT);
     //   }
     //   else
     //   {
@@ -458,6 +459,7 @@ int main()
     //   if (left_avg - prev_left_avg > 0.1)
     //   {
     //     // add gap to left side in ma[p]
+    //     mouseUpdateWall(-1,DLEFT);
     //   }
     //   else
     //   {
@@ -475,9 +477,14 @@ int main()
       // hardcoded directions for now to test the right motor, very unstable.
       if (true)
       {
-        char next_action = q[q_index];
+        // prompt left or right
+        printMaze();
+        printf("Go Left (L) or Right (R) ?\n");
+        char next_action = getchar_timeout_us(10 *1000*1000);
+        // char next_action = q[q_index];
         if (next_action == 'R')
         {
+          printf("Going right\n");
           // this needs to use the encoder code (ie turn right for k cm)
           turn_right(40);
           sleep_ms(200);
@@ -486,6 +493,7 @@ int main()
         }
         else if (next_action == 'L')
         {
+          printf("Going left\n");
           // this needs to use the encoder code (ie turn right for k cm)
           turn_left(50);
           sleep_ms(300);
@@ -494,6 +502,7 @@ int main()
         }
         else if (next_action == 'T')
         {
+          printf("turning around\n");
           // this needs to use the encoder code (ie turn right for k cm)
           turn_right(30);
           sleep_ms(600);

@@ -25,7 +25,7 @@ enum direction {
 };
 
 typedef struct state {
-    enum direction or;     // direction the robot is facing
+    int or;     // direction the robot is facing
     int x;                 // grid cell occupied x
     int y;               // grid cell occupied y
     int dist_in_cell_mm;     // position within cell from bounding wall (in dir)
