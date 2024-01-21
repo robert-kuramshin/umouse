@@ -111,56 +111,6 @@ VL53L1X_Status_t tof_init(int xshut, uint16_t addr)
   return status;
 }
 
-// 12-bit conversion, assume max value == ADC_VREF == 3.3 V
-float adcData(int adc_index)
-{
-  adc_select_input(adc_index);
-  float voltage = adc_read() * (3.3f / (1 << 12));
-  return voltage;
-}
-
-float rightVoltage2Distance(float data)
-{
-  // interpolate later, for now get crude dists
-  float m;
-  if (0.095 < data && data < 0.2)
-  {
-    m = data - 0.095;
-    return 0.5 - m * 4.76;
-  }
-  else if (0.062 < data && data < 0.095)
-  {
-    m = data - 0.062;
-    return 1.0 - m * 15.15;
-  }
-  else if (0.045 < data && data < 0.062)
-  {
-    m = data - 0.045;
-    return 1.5 - m * 29.41;
-  }
-  return 2.0;
-}
-float leftVoltage2Distance(float data)
-{
-  float m;
-  if (0.05 < data && data < 0.07)
-  {
-    m = data - 0.05;
-    return 0.5 - m * 25;
-  }
-  else if (0.032 < data && data < 0.05)
-  {
-    m = data - 0.032;
-    return 1.0 - m * 27.77;
-  }
-  else if (0.0265 < data && data < 0.032)
-  {
-    m = data - 0.0265;
-    return 1.5 - m * 90.9;
-  }
-  return 2.0;
-}
-
 void updateOdom()
 {
   float dist = encoders_distance_traveled();
@@ -169,46 +119,43 @@ void updateOdom()
   // printMaze();
 }
 
-void center_logic(uint16_t front_dist, float right_dist, float left_dist)
+void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
   int duty = 25;
-  float tolerance = 0.2;
-  float delta = right_dist - left_dist;
-  // printf("Delta:%f\n", delta);
-  if (front_dist <= 100) // this is what is causing the jittery continuous turns
+  if (front_dist < 100)
   {
+    mouseUpdateWall(1, DFORWARD);
     brake(100);
     moving = false;
     updateOdom();
-    if (right_dist >= 2) {
-      // add a right gap to wall
-      mouseUpdateWall(-1,DRIGHT);
-    } else {
+    if (right_dist < 100) {
+      // add a right wall
       mouseUpdateWall(1,DRIGHT);
-    }
-    if (left_dist >= 2) {
-      // add a left gap to wall
-      mouseUpdateWall(-1,DLEFT);
     } else {
-      mouseUpdateWall(1,DLEFT);
+      mouseUpdateWall(-1,DRIGHT);
     }
-    mouseUpdateWall(1, DFORWARD);
+    if (left_dist < 100) {
+      // add a left wall
+      mouseUpdateWall(1,DLEFT);
+    } else {
+      mouseUpdateWall(-1,DLEFT);
+    }
   }
   else
   {
     moving = true;
-    if (left_dist > 1.6 & right_dist > 1.6)
+    if (left_dist > 50 & right_dist > 50)
     {
       // we are far enough from the walls to assume were centered;
       goForward(duty);
     }
-    if (left_dist < 1.6)
+    if (left_dist < 50)
     {
       // veer right;
       moveRightMotor(32, 1);
       moveLeftMotor(23, 1);
     }
-    else if (right_dist < 1.6)
+    else if (right_dist < 50)
     {
       // veer left
       moveRightMotor(23, 1);
@@ -225,7 +172,7 @@ void center_logic(uint16_t front_dist, float right_dist, float left_dist)
 // 0 <= duty <= 100
 void pwm_set_duty(uint slice_num, uint chan, int duty)
 {
-  // pwm_set_chan_level(slice_num, chan, duty * WRAP / 100);
+  pwm_set_chan_level(slice_num, chan, duty * WRAP / 100);
 }
 
 void initMotors()
@@ -330,27 +277,6 @@ void turn_right(int duty)
   moveLeftMotor(duty, 1);
 }
 
-void counter_total_zero_test()
-{
-  gpio_set_function(RIGHT_MOTOR_A_PIN, GPIO_FUNC_PWM);
-  gpio_set_function(RIGHT_MOTOR_B_PIN, GPIO_FUNC_PWM);
-  gpio_set_function(LEFT_MOTOR_A_PIN, GPIO_FUNC_PWM);
-  gpio_set_function(LEFT_MOTOR_B_PIN, GPIO_FUNC_PWM);
-
-  sleep_us(5 * 1000 * 1000);
-
-  goForward(50);
-  sleep_us(2 * 1000 * 1000);
-
-  goForward(0);
-  sleep_us(3 * 1000 * 1000);
-
-  goBackward(50);
-  sleep_us(2 * 1000 * 1000);
-
-  goBackward(0);
-}
-
 void core1_entry()
 {
   // init tof sensor
@@ -379,6 +305,7 @@ void core1_entry()
   printf("TOF 2 status %d\n",status[2]);
   printf("Done configuring sensor!\n");
   bool first_range[3] = {true,true,true};
+  // this polling loop runs forever in thread 2
   while (true)
   {
     for(int i = 0; i < 3;i++)
@@ -398,9 +325,9 @@ void core1_entry()
       {
         tof_distance[i] = results[i].distance;
       }
-      printf("Core 1 TOF %d distance: %5d\n",i,  tof_distance[i]);
-
+      // printf("Core 1 TOF %d distance: %5d\n",i,  tof_distance[i]);
       status[i] += VL53L1X_ClearInterrupt(addrs[i]);
+      // sleep_ms(1000);
       if (first_range[i])
       { // Clear twice on first measurement
         status[i] += VL53L1X_ClearInterrupt(addrs[i]);
@@ -426,138 +353,80 @@ int main()
   sleep_ms(1000);
   printf("Board initialized!\n");
 
-  // Initialize adc pins
-  adc_gpio_init(RIGHT_ADC_PIN);
-  adc_gpio_init(LEFT_ADC_PIN);
-
   multicore_launch_core1(core1_entry);
-  while(true)
+
+  // Init motor output right and left (both forward)
+  initMotors();
+  gpio_pull_up(RIGHT_ENCODER_A_PIN);
+  gpio_pull_up(RIGHT_ENCODER_B_PIN);
+  gpio_pull_up(LEFT_ENCODER_A_PIN);
+  gpio_pull_up(LEFT_ENCODER_B_PIN);
+  encoders_register_callbacks();
+
+  q[0] = 'R'; // start off going R
+  q_index = 0;
+  while (true)
   {
-    ;
+    uint16_t right_dist = tof_distance[1];
+    uint16_t left_dist = tof_distance[2];
+    updateOdom();
+    if (right_dist < 150) {
+      mouseUpdateWall(1,DRIGHT);
+    } else {
+      mouseUpdateWall(-1, DRIGHT);
+    }
+
+    if (left_dist < 150) {
+      mouseUpdateWall(1, DLEFT);
+    } else {
+      mouseUpdateWall(-1, DLEFT);
+    }
+    // 80mm ~ pi inches
+    // printf("Core 2 TOF distance: %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
+    // printf(" dist = %5d, rightDist = %f, leftDist = %f\n", tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
+    center_logic(tof_distance[0], right_dist, left_dist);
+    if (!moving)
+    {
+      sleep_ms(1000);
+      // hardcoded directions for now to test the right motor, very unstable.
+      if (true)
+      {
+        // prompt left or right
+        //printMaze();
+        //printf("Go Left (L) or Right (R) ?\n");
+        //char next_action = getchar_timeout_us(10 *1000*1000);
+        char next_action = q[q_index];
+        if (next_action == 'R')
+        {
+          printf("Going right\n");
+          // this needs to use the encoder code (ie turn right for k cm)
+          turn_right(30);
+          sleep_ms(300);
+          brake(100);
+          mouseUpdateDir(DRIGHT);
+        }
+        else if (next_action == 'L')
+        {
+          printf("Going left\n");
+          // this needs to use the encoder code (ie turn right for k cm)
+          turn_left(50);
+          sleep_ms(300);
+          brake(100);
+          mouseUpdateDir(DLEFT);
+        }
+        else if (next_action == 'T')
+        {
+          printf("turning around\n");
+          // this needs to use the encoder code (ie turn right for k cm)
+          turn_right(30);
+          sleep_ms(600);
+          brake(100);
+          mouseUpdateDir(DRIGHT);
+          mouseUpdateDir(DRIGHT);
+        }
+      }
+      // zero encoders after turn
+      encoders_zero_distances();
+    }
   }
-
-  // // // Init motor output right and left (both forward)
-  // initMotors();
-  // gpio_pull_up(RIGHT_ENCODER_A_PIN);
-  // gpio_pull_up(RIGHT_ENCODER_B_PIN);
-  // gpio_pull_up(LEFT_ENCODER_A_PIN);
-  // gpio_pull_up(LEFT_ENCODER_B_PIN);
-
-  // encoders_register_callbacks();
-  
-  // // gpio_set_irq_enabled_with_callback(RIGHT_ENCODER_B_PIN, GPIO_IRQ_EDGE_FALL, true, &gpio_callback_b);
-  // // // basic_sequence_test();
-  // // printf("Freq %d\n", 125000000/WRAP);
-
-  // // Init interrupts
-  // // gpio_set_irq_enabled_with_callback(ENCODER_A_PIN, GPIO_IRQ_LEVEL_HIGH, true, &gpio_callback_a);
-
-  // // Repeating timer
-  // float prev_right_avg = 0.0f;
-  // float prev_left_avg = 0.0f;
-  // q[0] = 'R'; // start off going R
-  // // q[1] = 'R';
-  // //  q[2] = 'R';
-  // //  q[3] = 'R';
-  // //  q[4] = 'L';
-  // q_index = 0;
-  // while (true)
-  // {
-  //   // if (ir_dist_index >= 5)
-  //   // {
-  //   //   for (int i = 0; i < 5; i++)
-  //   //   {
-  //   //     prev_right_avg += right_dists[i];
-  //   //     prev_left_avg += left_dists[i];
-  //   //   }
-  //   //   prev_right_avg /= 5;
-  //   //   prev_left_avg /= 5;
-  //   // }
-  //   // update ir distance arrays with new distances
-  //   right_dists[ir_dist_index % 5] = rightVoltage2Distance(adcData((RIGHT_ADC_INDEX)));
-  //   left_dists[ir_dist_index % 5] = leftVoltage2Distance(adcData(LEFT_ADC_INDEX));
-  //   ir_dist_index++;
-
-  //   // if (ir_dist_index > 5)
-  //   // {
-  //   //   float right_avg = 0.0f;
-  //   //   float left_avg = 0.0f;
-  //   //   for (int i = 0; i < 5; i++)
-  //   //   {
-  //   //     right_avg += right_dists[i];
-  //   //     left_avg += left_dists[i];
-  //   //   }
-  //   //   right_avg /= 5;
-  //   //   left_avg /= 5;
-  //   //   updateOdom();
-  //   //   if (right_avg - prev_right_avg > 0.1)
-  //   //   {
-  //   //     // add gap to right side of the map
-  //   //     // mouseUpdateWall();
-  //   //     mouseUpdateWall(-1,DRIGHT);
-  //   //   }
-  //   //   else
-  //   //   {
-  //   //     mouseUpdateWall(1,DRIGHT);
-  //   //     // add a right wall to map
-  //   //   }
-  //   //   if (left_avg - prev_left_avg > 0.1)
-  //   //   {
-  //   //     // add gap to left side in ma[p]
-  //   //     mouseUpdateWall(-1,DLEFT);
-  //   //   }
-  //   //   else
-  //   //   {
-  //   //     mouseUpdateWall(1,DLEFT);
-  //   //     // add a left wall to map
-  //   //   }
-  //   // }
-  //   // 80mm ~ pi inches
-  //   // printf("Core 2 TOF distance: %5d\n", tof_distance);
-  //   // printf(" dist = %5d, rightDist = %f, leftDist = %f\n", tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
-  //   center_logic(tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
-  //   if (!moving)
-  //   {
-  //     sleep_ms(1000);
-  //     // hardcoded directions for now to test the right motor, very unstable.
-  //     if (true)
-  //     {
-  //       // prompt left or right
-  //       printMaze();
-  //       printf("Go Left (L) or Right (R) ?\n");
-  //       char next_action = getchar_timeout_us(10 *1000*1000);
-  //       // char next_action = q[q_index];
-  //       if (next_action == 'R')
-  //       {
-  //         printf("Going right\n");
-  //         // this needs to use the encoder code (ie turn right for k cm)
-  //         turn_right(40);
-  //         sleep_ms(200);
-  //         brake(100);
-  //         mouseUpdateDir(DRIGHT);
-  //       }
-  //       else if (next_action == 'L')
-  //       {
-  //         printf("Going left\n");
-  //         // this needs to use the encoder code (ie turn right for k cm)
-  //         turn_left(50);
-  //         sleep_ms(300);
-  //         brake(100);
-  //         mouseUpdateDir(DLEFT);
-  //       }
-  //       else if (next_action == 'T')
-  //       {
-  //         printf("turning around\n");
-  //         // this needs to use the encoder code (ie turn right for k cm)
-  //         turn_right(30);
-  //         sleep_ms(600);
-  //         brake(100);
-  //         mouseUpdateDir(DRIGHT);
-  //         mouseUpdateDir(DRIGHT);
-  //       }
-  //     }
-  //     // zero encoders after turn
-  //     encoders_zero_distances();
-  //   }
-  // }
 }

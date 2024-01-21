@@ -3,16 +3,19 @@ if (TARGET tinyusb_device)
             hello_usb.c
             encoders.c
             map.c
+            VL53L1X_api.c
+            VL53L1X_calibration.c
+            VL53L1X_platform.c
             )
 
     # pull in common dependencies
     target_link_libraries(hello_usb  pico_stdlib
-                            hardware_gpio hardware_pwm hardware_i2c VL53L1X_pico_api hardware_adc pico_cyw43_arch_none pico_multicore)
+                            hardware_gpio hardware_pwm hardware_i2c hardware_adc pico_cyw43_arch_none pico_multicore)
 
     target_include_directories(hello_usb PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 
     # Pull in the API
-    include(/home/robert/code/pico/pico-examples/hello_world/usb/library/import.cmake)
+    # include(../library/import.cmake)
 
     # enable usb output, disable uart output
     pico_enable_stdio_usb(hello_usb 1)

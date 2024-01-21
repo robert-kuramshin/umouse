@@ -1,0 +1,104 @@
+/*
+// Initialize adc pins for IR's
+  // adc_gpio_init(RIGHT_ADC_PIN);
+  // adc_gpio_init(LEFT_ADC_PIN);
+// if (ir_dist_index >= 5)
+    // {
+    //   for (int i = 0; i < 5; i++)
+    //   {
+    //     prev_right_avg += right_dists[i];
+    //     prev_left_avg += left_dists[i];
+    //   }
+    //   prev_right_avg /= 5;
+    //   prev_left_avg /= 5;
+    // }
+    // update ir distance arrays with new distances
+    right_dists[ir_dist_index % 5] = rightVoltage2Distance(adcData((RIGHT_ADC_INDEX)));
+    left_dists[ir_dist_index % 5] = leftVoltage2Distance(adcData(LEFT_ADC_INDEX));
+    ir_dist_index++;
+
+    // if (ir_dist_index > 5)
+    // {
+    //   float right_avg = 0.0f;
+    //   float left_avg = 0.0f;
+    //   for (int i = 0; i < 5; i++)
+    //   {
+    //     right_avg += right_dists[i];
+    //     left_avg += left_dists[i];
+    //   }
+    //   right_avg /= 5;
+    //   left_avg /= 5;
+    //   updateOdom();
+    //   if (right_avg - prev_right_avg > 0.1)
+    //   {
+    //     // add gap to right side of the map
+    //     // mouseUpdateWall();
+    //     mouseUpdateWall(-1,DRIGHT);
+    //   }
+    //   else
+    //   {
+    //     mouseUpdateWall(1,DRIGHT);
+    //     // add a right wall to map
+    //   }
+    //   if (left_avg - prev_left_avg > 0.1)
+    //   {
+    //     // add gap to left side in ma[p]
+    //     mouseUpdateWall(-1,DLEFT);
+    //   }
+    //   else
+    //   {
+    //     mouseUpdateWall(1,DLEFT);
+    //     // add a left wall to map
+    //   }
+    // }
+
+    // 12-bit conversion, assume max value == ADC_VREF == 3.3 V
+float adcData(int adc_index)
+{
+  adc_select_input(adc_index);
+  float voltage = adc_read() * (3.3f / (1 << 12));
+  return voltage;
+}
+float rightVoltage2Distance(float data)
+{
+  // interpolate later, for now get crude dists
+  float m;
+  if (0.095 < data && data < 0.2)
+  {
+    m = data - 0.095;
+    return 0.5 - m * 4.76;
+  }
+  else if (0.062 < data && data < 0.095)
+  {
+    m = data - 0.062;
+    return 1.0 - m * 15.15;
+  }
+  else if (0.045 < data && data < 0.062)
+  {
+    m = data - 0.045;
+    return 1.5 - m * 29.41;
+  }
+  return 2.0;
+}
+float leftVoltage2Distance(float data)
+{
+  float m;
+  if (0.05 < data && data < 0.07)
+  {
+    m = data - 0.05;
+    return 0.5 - m * 25;
+  }
+  else if (0.032 < data && data < 0.05)
+  {
+    m = data - 0.032;
+    return 1.0 - m * 27.77;
+  }
+  else if (0.0265 < data && data < 0.032)
+  {
+    m = data - 0.0265;
+    return 1.5 - m * 90.9;
+  }
+  return 2.0;
+}
+
+    */

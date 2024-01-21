@@ -21,7 +21,7 @@ void printMaze()
             if (x == g_state.x && y == g_state.y)
             {
                 printf("X");
-            }
+            } 
             printf(" %2.0f", v_walls[x][y]);
         }
         printf("\n");
