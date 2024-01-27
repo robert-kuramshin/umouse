@@ -62,6 +62,22 @@ if (TARGET tinyusb_device)
     pico_enable_stdio_usb(flash_erase 1)
     pico_enable_stdio_uart(flash_erase 0)
     pico_add_extra_outputs(flash_erase)
+
+    add_executable(flash_read_all
+            logflash.c
+            flash_read_all.c
+            )
+
+    # pull in common dependencies
+    target_link_libraries(flash_read_all 
+            pico_stdlib    
+            hardware_flash
+            pico_cyw43_arch_none)
+
+    target_include_directories(flash_read_all PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+    pico_enable_stdio_usb(flash_read_all 1)
+    pico_enable_stdio_uart(flash_read_all 0)
+    pico_add_extra_outputs(flash_read_all)
 elseif(PICO_ON_DEVICE)
     message(WARNING "not building hello_usb because TinyUSB submodule is not initialized in the SDK")
 endif()
