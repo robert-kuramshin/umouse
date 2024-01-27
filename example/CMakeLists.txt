@@ -9,8 +9,15 @@ if (TARGET tinyusb_device)
             )
 
     # pull in common dependencies
-    target_link_libraries(hello_usb  pico_stdlib
-                            hardware_gpio hardware_pwm hardware_i2c hardware_adc pico_cyw43_arch_none pico_multicore)
+    target_link_libraries(hello_usb 
+            pico_stdlib 
+            hardware_gpio 
+            hardware_pwm 
+            hardware_i2c  
+            hardware_adc 
+            pico_cyw43_arch_none 
+            pico_multicore 
+            hardware_flash)
 
     target_include_directories(hello_usb PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 
@@ -24,8 +31,39 @@ if (TARGET tinyusb_device)
     # create map/bin/hex/uf2 file etc.
     pico_add_extra_outputs(hello_usb)
 
-    # add url via pico_set_program_url
-    # example_auto_set_url(hello_usb)
+    add_executable(flash_test
+            logflash.c
+            flash_test.c
+            )
+
+    # pull in common dependencies
+    target_link_libraries(flash_test 
+            pico_stdlib   
+            pico_multicore 
+            hardware_flash
+            pico_cyw43_arch_none
+            hardware_rtc)
+
+    target_include_directories(flash_test PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+    pico_enable_stdio_usb(flash_test 1)
+    pico_enable_stdio_uart(flash_test 0)
+    pico_add_extra_outputs(flash_test)
+
+    add_executable(flash_erase
+            logflash.c
+            flash_erase.c
+            )
+
+    # pull in common dependencies
+    target_link_libraries(flash_erase 
+            pico_stdlib    
+            hardware_flash
+            pico_cyw43_arch_none)
+
+    target_include_directories(flash_erase PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+    pico_enable_stdio_usb(flash_erase 1)
+    pico_enable_stdio_uart(flash_erase 0)
+    pico_add_extra_outputs(flash_erase)
 elseif(PICO_ON_DEVICE)
     message(WARNING "not building hello_usb because TinyUSB submodule is not initialized in the SDK")
 endif()
