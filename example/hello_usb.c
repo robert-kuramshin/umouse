@@ -41,18 +41,12 @@
 
 #define PATH_LENGTH (10000)
 
-char q[PATH_LENGTH];
-int q_index = 0;
-
-float right_dists[5];
-float left_dists[5];
-int ir_dist_index = 0;
 
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
 
 volatile uint32_t counter = 0;
 
-volatile uint16_t tof_distance[3] = {50,50,50};
+volatile uint16_t tof_distance[3] = {151, 50, 50}; // make sure not to do anything till we get a first reading
 
 bool moving = true;
 // motor slices and f/r channels
@@ -67,13 +61,12 @@ uint lrchan;
 //     printf("event A\n");
 // }
 
-
 VL53L1X_Status_t tof_init(int xshut, uint16_t addr)
 {
   VL53L1X_Status_t status;
   // GPIO sda=16, scl=17, i2c0
   // gpio_pull_up(xshut);
-  gpio_put(xshut,1);
+  gpio_put(xshut, 1);
 
   if (VL53L1X_I2C_Init(I2C_DEV_ADDR_0, i2c0) < 0)
   {
@@ -84,11 +77,13 @@ VL53L1X_Status_t tof_init(int xshut, uint16_t addr)
   // change address
   if (addr != I2C_DEV_ADDR_0)
   {
-    int ret = VL53L1X_SetI2CAddress(I2C_DEV_ADDR_0, addr<<1);
+    int ret = VL53L1X_SetI2CAddress(I2C_DEV_ADDR_0, addr << 1);
     if (ret != 0)
     {
       printf("Could not set sensor addr to %d\n", addr);
-    } else {
+    }
+    else
+    {
       printf("address changed\n");
     }
   }
@@ -99,7 +94,7 @@ VL53L1X_Status_t tof_init(int xshut, uint16_t addr)
     status += VL53L1X_BootState(addr, &sensorState);
     VL53L1X_WaitMs(addr, 2);
   } while (sensorState == 0);
-  printf("Sensor booted. 0x%x\n",addr);
+  printf("Sensor booted. 0x%x\n", addr);
 
   // Initialize and configure sensor
   status = VL53L1X_SensorInit(addr);
@@ -116,56 +111,62 @@ void updateOdom()
   float dist = encoders_distance_traveled();
   mouseUpdateOdom(dist);
   encoders_zero_distances();
-  // printMaze();
 }
 
 void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
-  int duty = 25;
-  if (front_dist < 100)
+  int duty = 30;
+  // This is the condition where you are stopped in a straight route.
+  if (front_dist < 150)
   {
-    mouseUpdateWall(1, DFORWARD);
     brake(100);
+    mouseUpdateWall(100, DFORWARD);
     moving = false;
-    updateOdom();
-    if (right_dist < 100) {
+    if (right_dist < 100)
+    {
       // add a right wall
-      mouseUpdateWall(1,DRIGHT);
-    } else {
-      mouseUpdateWall(-1,DRIGHT);
+      mouseUpdateWall(100, DRIGHT);
     }
-    if (left_dist < 100) {
+    else
+    {
+      mouseUpdateWall(-100, DRIGHT);
+    }
+    if (left_dist < 100)
+    {
       // add a left wall
-      mouseUpdateWall(1,DLEFT);
-    } else {
-      mouseUpdateWall(-1,DLEFT);
+      mouseUpdateWall(100, DLEFT);
+    }
+    else
+    {
+      mouseUpdateWall(-100, DLEFT);
     }
   }
   else
   {
     moving = true;
-    if (left_dist > 50 & right_dist > 50)
-    {
-      // we are far enough from the walls to assume were centered;
-      goForward(duty);
-    }
-    if (left_dist < 50)
+    if (left_dist < 40)
     {
       // veer right;
-      moveRightMotor(32, 1);
-      moveLeftMotor(23, 1);
+      // brake(100);
+      // sleep_ms(1000);
+      while (tof_distance[2] < 40)
+      {
+        moveLeftMotor(duty, 1);
+        moveRightMotor(duty - 10, 1);
+      }
     }
-    else if (right_dist < 50)
+    else if (right_dist < 40)
     {
       // veer left
-      moveRightMotor(23, 1);
-      moveLeftMotor(32, 1);
+      // brake(100);
+      // sleep_ms(1000);
+      while (tof_distance[1] < 40)
+      {
+        moveRightMotor(duty, 1);
+        moveLeftMotor(duty - 10, 1);
+      }
     }
-    else
-    {
-      // do nothing, were centered;
-      goForward(duty);
-    }
+    goForward(duty);
   }
 }
 
@@ -288,27 +289,27 @@ void core1_entry()
   gpio_pull_up(16);
   gpio_pull_up(17);
   gpio_init(22);
-  gpio_set_dir(22,GPIO_OUT);
-  gpio_put(22,0);
+  gpio_set_dir(22, GPIO_OUT);
+  gpio_put(22, 0);
   gpio_init(18);
-  gpio_set_dir(18,GPIO_OUT);
-  gpio_put(18,0);
+  gpio_set_dir(18, GPIO_OUT);
+  gpio_put(18, 0);
   gpio_init(28);
-  gpio_set_dir(28,GPIO_OUT);
-  gpio_put(28,0);
-  uint16_t addrs[3] ={I2C_DEV_ADDR_2, I2C_DEV_ADDR_1, I2C_DEV_ADDR_0};
-  status[0] = tof_init(22,I2C_DEV_ADDR_2);
-  printf("TOF 0 status %d\n",status[0]);
-  status[1] = tof_init(18,I2C_DEV_ADDR_1);
-  printf("TOF 1 status %d\n",status[1]);
-  status[2] = tof_init(28,I2C_DEV_ADDR_0);
-  printf("TOF 2 status %d\n",status[2]);
+  gpio_set_dir(28, GPIO_OUT);
+  gpio_put(28, 0);
+  uint16_t addrs[3] = {I2C_DEV_ADDR_2, I2C_DEV_ADDR_1, I2C_DEV_ADDR_0};
+  status[0] = tof_init(22, I2C_DEV_ADDR_2);
+  printf("TOF 0 status %d\n", status[0]);
+  status[1] = tof_init(18, I2C_DEV_ADDR_1);
+  printf("TOF 1 status %d\n", status[1]);
+  status[2] = tof_init(28, I2C_DEV_ADDR_0);
+  printf("TOF 2 status %d\n", status[2]);
   printf("Done configuring sensor!\n");
-  bool first_range[3] = {true,true,true};
+  bool first_range[3] = {true, true, true};
   // this polling loop runs forever in thread 2
   while (true)
   {
-    for(int i = 0; i < 3;i++)
+    for (int i = 0; i < 3; i++)
     {
       // Wait until we have new data (front distance)
       uint8_t dataReady;
@@ -333,7 +334,7 @@ void core1_entry()
         status[i] += VL53L1X_ClearInterrupt(addrs[i]);
         first_range[i] = false;
       }
-      }
+    }
   }
 }
 
@@ -354,7 +355,7 @@ int main()
   printf("Board initialized!\n");
 
   multicore_launch_core1(core1_entry);
-
+  // while (true) {;}
   // Init motor output right and left (both forward)
   initMotors();
   gpio_pull_up(RIGHT_ENCODER_A_PIN);
@@ -363,67 +364,67 @@ int main()
   gpio_pull_up(LEFT_ENCODER_B_PIN);
   encoders_register_callbacks();
 
-  q[0] = 'R'; // start off going R
-  q_index = 0;
   while (true)
   {
+    updateOdom();
+    printMaze();
     uint16_t right_dist = tof_distance[1];
     uint16_t left_dist = tof_distance[2];
-    updateOdom();
-    if (right_dist < 150) {
-      mouseUpdateWall(1,DRIGHT);
-    } else {
+    // build map while we are moving
+    if (right_dist < 100)
+    {
+      mouseUpdateWall(1, DRIGHT);
+    }
+    else
+    {
       mouseUpdateWall(-1, DRIGHT);
     }
 
-    if (left_dist < 150) {
+    if (left_dist < 100)
+    {
       mouseUpdateWall(1, DLEFT);
-    } else {
+    }
+    else
+    {
       mouseUpdateWall(-1, DLEFT);
     }
     // 80mm ~ pi inches
     // printf("Core 2 TOF distance: %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
-    // printf(" dist = %5d, rightDist = %f, leftDist = %f\n", tof_distance, right_dists[(ir_dist_index - 1) % 5], left_dists[(ir_dist_index - 1) % 5]);
+    // printf(" Front dist = %5d, rightDist = %5d\n, leftDist = %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     center_logic(tof_distance[0], right_dist, left_dist);
     if (!moving)
     {
       sleep_ms(1000);
-      // hardcoded directions for now to test the right motor, very unstable.
-      if (true)
+      printf("We have stopped moving!");
+      // printf("Go Left (L) or Right (R) ?\n");
+      // char next_action = getchar_timeout_us(10 *1000*1000);
+      if (mouseCanGoRight() == 1)
       {
-        // prompt left or right
-        //printMaze();
-        //printf("Go Left (L) or Right (R) ?\n");
-        //char next_action = getchar_timeout_us(10 *1000*1000);
-        char next_action = q[q_index];
-        if (next_action == 'R')
+        printf("Going right\n");
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        // this needs to use the encoder codem (ie turn right for k cm)
+        while (tof_distance[0] < 150)
         {
-          printf("Going right\n");
-          // this needs to use the encoder code (ie turn right for k cm)
           turn_right(30);
-          sleep_ms(300);
-          brake(100);
-          mouseUpdateDir(DRIGHT);
         }
-        else if (next_action == 'L')
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+        brake(100);
+        sleep_ms(1000);
+        mouseUpdateDir(DRIGHT);
+        moving = true;
+      }
+      else if (mouseCanGoLeft() == 1)
+      {
+        printf("Going left\n");
+        // this needs to use the encoder code (ie turn right for k cm)
+        while (tof_distance[0] < 150)
         {
-          printf("Going left\n");
-          // this needs to use the encoder code (ie turn right for k cm)
-          turn_left(50);
-          sleep_ms(300);
-          brake(100);
-          mouseUpdateDir(DLEFT);
+          turn_left(30);
         }
-        else if (next_action == 'T')
-        {
-          printf("turning around\n");
-          // this needs to use the encoder code (ie turn right for k cm)
-          turn_right(30);
-          sleep_ms(600);
-          brake(100);
-          mouseUpdateDir(DRIGHT);
-          mouseUpdateDir(DRIGHT);
-        }
+        brake(100);
+        sleep_ms(1000);
+        mouseUpdateDir(DLEFT);
+        moving = true;
       }
       // zero encoders after turn
       encoders_zero_distances();

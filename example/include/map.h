@@ -4,8 +4,8 @@
 
 #include "stdio.h"
 
-#define MAZE_WIDTH (16)
-#define MAZE_HEIGHT (16)
+#define MAZE_WIDTH (4)
+#define MAZE_HEIGHT (3)
 #define CELL_WIDHT_MM (180)
 
 // for absoulte orientation of mouse within maze
@@ -28,7 +28,7 @@ typedef struct state {
     int or;     // direction the robot is facing
     int x;                 // grid cell occupied x
     int y;               // grid cell occupied y
-    int dist_in_cell_mm;     // position within cell from bounding wall (in dir)
+    float dist_in_cell_mm;     // position within cell from bounding wall (in dir)
 } state_t;
 
 void printMaze();
@@ -39,6 +39,9 @@ void mouseUpdateWall(float confidence, int dir);
 
 void mouseUpdateDir(int dir);
 
-void mouseUpdateOdom(int distance_mm);
+void mouseUpdateOdom(float distance_mm);
 
+int mouseCanGoRight();
+
+int mouseCanGoLeft();
 #endif

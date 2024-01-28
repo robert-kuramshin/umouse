@@ -54,7 +54,7 @@ void encoders_zero_distances(void)
 
 inline float counts_to_mm(uint32_t count)
 {
-    return (float) count / COUNTS_PER_REV * WHEEL_CIRCUMFERENCE_MM * CALIB;
+    return ((float) count) / COUNTS_PER_REV * WHEEL_CIRCUMFERENCE_MM * CALIB;
 } 
 
 
