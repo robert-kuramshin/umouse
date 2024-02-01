@@ -104,30 +104,31 @@ int mouseCanGoLeft()
     switch (facing)
     {
     case ORIGHT:
-            if (x - 1 < 0)
-                return 0; // uhoh
-            if (h_walls[x - 1][y] < 0)
-                return 1;
-            return 0;
+        if (x - 1 < 0)
+            return 0; // uhoh
+        if (h_walls[x - 1][y] < 0)
+            return 1;
+        return 0;
     case ODOWN:
-            if (y == MAZE_WIDTH - 1)
-                return 0;
-            if (v_walls[x][y] < 0)
-                return 1;
+        if (y == MAZE_WIDTH - 1)
             return 0;
+        if (v_walls[x][y] < 0)
+            return 1;
+        return 0;
     case OLEFT:
-            if (x == MAZE_HEIGHT - 1)
-                return 0;
-            if (h_walls[x][y] < 0)
-                return 1;
+        if (x == MAZE_HEIGHT - 1)
             return 0;
+        if (h_walls[x][y] < 0)
+            return 1;
+        return 0;
     case OUP:
-            if (y - 1 < 0)
-                return 0;
-            if (v_walls[x][y - 1] < 0){
-                return 1;
-            }
+        if (y - 1 < 0)
             return 0;
+        if (v_walls[x][y - 1] < 0)
+        {
+            return 1;
+        }
+        return 0;
     }
 }
 

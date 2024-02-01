@@ -6,6 +6,7 @@ if (TARGET tinyusb_device)
             VL53L1X_api.c
             VL53L1X_calibration.c
             VL53L1X_platform.c
+            engine.c
             )
 
     # pull in common dependencies

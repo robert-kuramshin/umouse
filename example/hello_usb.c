@@ -20,6 +20,7 @@
 
 #include "encoders.h"
 #include "map.h"
+#include "engine.h"
 
 #define RIGHT_MOTOR_A_PIN (14)
 #define RIGHT_MOTOR_B_PIN (15)
@@ -353,9 +354,27 @@ int main()
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   sleep_ms(1000);
   printf("Board initialized!\n");
+  
 
-  multicore_launch_core1(core1_entry);
-  // while (true) {;}
+  // multicore_launch_core1(core1_entry);
+
+// START TESTING THE MAZE SOLVING CODE START
+  int v_walls[4][3] = {
+    {0, 0, -1},
+    {1, 0, -1},
+    {1, 0, 1},
+    {-1, -1, -1}
+};
+int h_walls[3][4] = {
+    {1, 1, 1, -1},
+    {0, -1, -1, -1},
+    {1, 1, 1, -1}
+};
+  buildGraph(h_walls, v_walls);
+  int* path = getShortestDistancePath(0, 9);
+  char* instructions = getPathInstructions(path);
+  return -1;
+  // END TESTING THE MAZE SOLVING CODE END
   // Init motor output right and left (both forward)
   initMotors();
   gpio_pull_up(RIGHT_ENCODER_A_PIN);
