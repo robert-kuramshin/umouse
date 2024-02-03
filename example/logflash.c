@@ -68,9 +68,9 @@ void lfprintf(const char *format, ...)
         active_page->size = 0;
         g_header.write_page_num =  (g_header.write_page_num + 1) % NUM_PAGES;
         res = vsnprintf(active_page->data, PAGE_DATA_SIZE, format, args3);
+        update_header();
     }
     va_end(args3);
-    update_header();
     active_page->size += res;
     //make sure to 0 terminate
 }
