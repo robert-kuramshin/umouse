@@ -1,4 +1,5 @@
 #include "map.h"
+#include "logflash.h"
 
 float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
 float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
@@ -9,35 +10,35 @@ state_t g_state = {
 
 void printMaze()
 {
-    printf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%f\n",
+    lfprintf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%f\n",
            g_state.x, g_state.y, g_state.or, g_state.dist_in_cell_mm);
     for (int x = 0; x < MAZE_HEIGHT; x++)
     {
-        printf("v|");
+        lfprintf("v|");
         for (int y = 0; y < MAZE_WIDTH - 1; y++)
         {
             // print vertication
             if (x == g_state.x && y == g_state.y)
             {
-                printf("X");
+                lfprintf("X");
             }
-            printf(" %2.0f", v_walls[x][y]);
+            lfprintf(" %2.0f", v_walls[x][y]);
         }
-        printf("\n");
+        lfprintf("\n");
         if (x == MAZE_HEIGHT - 1)
         {
             break;
         }
-        printf("h| ");
+        lfprintf("h| ");
         for (int y = 0; y < MAZE_WIDTH; y++)
         {
             // print vertication
-            printf("%2.0f ", h_walls[x][y]);
+            lfprintf("%2.0f ", h_walls[x][y]);
         }
-        printf("\n");
+        lfprintf("\n");
     }
-    printf("\n");
-    printf("\n");
+    lfprintf("\n");
+    lfprintf("\n");
 }
 /*
  - - - - -
@@ -136,23 +137,23 @@ void mouseUpdateWall(float confidence, int dir)
 {
     if (confidence > 0)
     {
-        printf("voting wall to the ");
+        lfprintf("voting wall to the ");
     }
     else
     {
-        printf("voting gap to the ");
+        lfprintf("voting gap to the ");
     }
     if (dir == DRIGHT)
     {
-        printf("right\n");
+        lfprintf("right\n");
     }
     else if (dir == DLEFT)
     {
-        printf("left\n");
+        lfprintf("left\n");
     }
     else if (dir == DFORWARD)
     {
-        printf("ahead\n");
+        lfprintf("ahead\n");
     }
     int x = g_state.x;
     int y = g_state.y;
@@ -285,22 +286,22 @@ void mouseUpdateOdom(float distance_mm)
 
     if (g_state.x >= MAZE_HEIGHT)
     {
-        printf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
+        lfprintf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
         g_state.x = MAZE_HEIGHT - 1;
     }
     if (g_state.y >= MAZE_WIDTH)
     {
-        printf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
+        lfprintf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
         g_state.y = MAZE_WIDTH - 1;
     }
     if (g_state.x < 0)
     {
-        printf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
+        lfprintf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
         g_state.x = 0;
     }
     if (g_state.y < 0)
     {
-        printf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
+        lfprintf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
         g_state.y = 0;
     }
 }

@@ -18,6 +18,8 @@
 #include "VL53L1X_types.h"
 #include <math.h>
 
+#include "logflash.h"
+
 #include "encoders.h"
 #include "map.h"
 
@@ -353,6 +355,14 @@ int main()
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   sleep_ms(1000);
   printf("Board initialized!\n");
+
+  int res = init_log_flash();
+  if (res != 0)
+  {
+    printf("error initing log flash\n");
+  }
+
+  print_all();
 
   multicore_launch_core1(core1_entry);
   // while (true) {;}

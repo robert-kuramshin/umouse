@@ -1,6 +1,7 @@
 if (TARGET tinyusb_device)
     add_executable(hello_usb
             hello_usb.c
+            logflash.c
             encoders.c
             map.c
             VL53L1X_api.c
