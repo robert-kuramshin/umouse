@@ -48,6 +48,8 @@ int init_log_flash();
 
 void lfprintf(const char *format, ...);
 
+void print_last(int num);
+
 void print_all();
 
 void erase_all();

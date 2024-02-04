@@ -98,6 +98,34 @@ void print_all()
     }
 }
 
+void print_last(int num)
+{
+    if (num >= NUM_PAGES)
+    {
+        printf("num should be less than num pages: %d\n", NUM_PAGES);
+        return;
+    }
+    const page_t *page;
+    // take first page in front of the write pointer (tail of circ buffer)
+    int page_num = (g_header.write_page_num + NUM_PAGES - num) % NUM_PAGES;
+    while (page_num != g_header.write_page_num)
+    {
+#ifdef LOG_H_DEBUG
+        printf("testing page %d\n",page_num);
+#endif
+        page = (page_t *)(flash_target_contents + page_num * FLASH_PAGE_SIZE);
+        if (page->magic != PAGE_MAGIC) {
+            page_num = (page_num + 1) % NUM_PAGES;
+            continue;
+        }
+#ifdef LOG_H_DEBUG
+        printf("Reading page num %d from addr %p, size %ld\n", page_num, page, page->size);
+#endif
+        printf(page->data);
+        page_num = (page_num + 1) % NUM_PAGES;
+    }
+}
+
 int init_log_flash()
 {
     page_a = (page_t *) calloc(sizeof(page_t),1);
