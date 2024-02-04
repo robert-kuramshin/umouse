@@ -81,6 +81,20 @@ if (TARGET tinyusb_device)
     pico_enable_stdio_usb(flash_read_all 1)
     pico_enable_stdio_uart(flash_read_all 0)
     pico_add_extra_outputs(flash_read_all)
+
+    add_executable(test_odometry
+            encoders.c
+            test_odometry.c
+            )
+
+    # pull in common dependencies
+    target_link_libraries(test_odometry 
+            pico_stdlib)
+
+    target_include_directories(test_odometry PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+    pico_enable_stdio_usb(test_odometry 1)
+    pico_enable_stdio_uart(test_odometry 0)
+    pico_add_extra_outputs(test_odometry)
 elseif(PICO_ON_DEVICE)
     message(WARNING "not building hello_usb because TinyUSB submodule is not initialized in the SDK")
 endif()
