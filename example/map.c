@@ -10,35 +10,35 @@ state_t g_state = {
 
 void printMaze()
 {
-    lfprintf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%f\n",
+    printf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%f\n",
            g_state.x, g_state.y, g_state.or, g_state.dist_in_cell_mm);
     for (int x = 0; x < MAZE_HEIGHT; x++)
     {
-        lfprintf("v|");
+        printf("v|");
         for (int y = 0; y < MAZE_WIDTH - 1; y++)
         {
             // print vertication
             if (x == g_state.x && y == g_state.y)
             {
-                lfprintf("X");
+                printf("X");
             }
-            lfprintf(" %2.0f", v_walls[x][y]);
+            printf(" %2.0f", v_walls[x][y]);
         }
-        lfprintf("\n");
+        printf("\n");
         if (x == MAZE_HEIGHT - 1)
         {
             break;
         }
-        lfprintf("h| ");
+        printf("h| ");
         for (int y = 0; y < MAZE_WIDTH; y++)
         {
             // print vertication
-            lfprintf("%2.0f ", h_walls[x][y]);
+            printf("%2.0f ", h_walls[x][y]);
         }
-        lfprintf("\n");
+        printf("\n");
     }
-    lfprintf("\n");
-    lfprintf("\n");
+    printf("\n");
+    printf("\n");
 }
 /*
  - - - - -
@@ -137,23 +137,23 @@ void mouseUpdateWall(float confidence, int dir)
 {
     if (confidence > 0)
     {
-        lfprintf("voting wall to the ");
+        printf("voting wall to the ");
     }
     else
     {
-        lfprintf("voting gap to the ");
+        printf("voting gap to the ");
     }
     if (dir == DRIGHT)
     {
-        lfprintf("right\n");
+        printf("right\n");
     }
     else if (dir == DLEFT)
     {
-        lfprintf("left\n");
+        printf("left\n");
     }
     else if (dir == DFORWARD)
     {
-        lfprintf("ahead\n");
+        printf("ahead\n");
     }
     int x = g_state.x;
     int y = g_state.y;
@@ -286,22 +286,22 @@ void mouseUpdateOdom(float distance_mm)
 
     if (g_state.x >= MAZE_HEIGHT)
     {
-        lfprintf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
+        printf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
         g_state.x = MAZE_HEIGHT - 1;
     }
     if (g_state.y >= MAZE_WIDTH)
     {
-        lfprintf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
+        printf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
         g_state.y = MAZE_WIDTH - 1;
     }
     if (g_state.x < 0)
     {
-        lfprintf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
+        printf("We have hit the maze height at position %d, %d\n", g_state.x, g_state.y);
         g_state.x = 0;
     }
     if (g_state.y < 0)
     {
-        lfprintf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
+        printf("We have hit the maze width at position %d, %d\n", g_state.x, g_state.y);
         g_state.y = 0;
     }
 }
