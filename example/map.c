@@ -137,23 +137,23 @@ void mouseUpdateWall(float confidence, int dir)
 {
     if (confidence > 0)
     {
-        printf("voting wall to the ");
+        // printf("voting wall to the ");
     }
     else
     {
-        printf("voting gap to the ");
+        // printf("voting gap to the ");
     }
     if (dir == DRIGHT)
     {
-        printf("right\n");
+        // printf("right\n");
     }
     else if (dir == DLEFT)
     {
-        printf("left\n");
+        // printf("left\n");
     }
     else if (dir == DFORWARD)
     {
-        printf("ahead\n");
+        // printf("ahead\n");
     }
     int x = g_state.x;
     int y = g_state.y;

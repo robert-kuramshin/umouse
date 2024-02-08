@@ -124,7 +124,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
   int duty = 30;
   // This is the condition where you are stopped in a straight route.
-  if (front_dist < 90)
+  if (front_dist < 85)
   {
     smart_stop();
 
@@ -322,11 +322,12 @@ void core1_entry()
     {
       // Wait until we have new data (front distance)
       uint8_t dataReady;
-      do
-      {
-        status[i] = VL53L1X_CheckForDataReady(addrs[i], &dataReady);
-        sleep_us(1);
-      } while (dataReady == 0);
+      status[i] = VL53L1X_CheckForDataReady(addrs[i], &dataReady);
+      sleep_us(1);
+      if (dataReady == 0) {
+        // skip sensor if not ready
+        continue;
+      }
 
       // Read and display result
       status[i] += VL53L1X_GetResult(addrs[i], &results[i]);
@@ -347,8 +348,8 @@ void core1_entry()
   }
 }
 
-#define THR_CNT (2)
-#define THR_SLP (10)
+#define THR_CNT (1)
+#define THR_SLP (5)
 void smart_stop()
 {
   // first brake
@@ -370,6 +371,7 @@ void smart_stop()
     {
       // if count change > threshold and direction hasn't changed
       run = true;
+      printf("hardbreak left %d \n", left_count - last_left);
       // apply full duty in opposite direction
       moveLeftMotor(100, left_orig_dir ? -1 : 1);
       sleep_ms(THR_SLP);
@@ -380,6 +382,7 @@ void smart_stop()
     {
       // if count change > threshold and direction hasn't changed
       run = true;
+      printf("hardbreak right %d\n", right_count - last_right);
       // apply full duty in opposite direction
       moveRightMotor(100, right_orig_dir ? -1 : 1);
       sleep_ms(THR_SLP);
@@ -388,6 +391,13 @@ void smart_stop()
     }
   }
 }
+
+// void smartStart()
+// {
+//   // init some drive strength
+//   // keep increasing power until encoders start reading
+//   // drop drive speed
+// }
 
 
 int main()
@@ -427,7 +437,7 @@ int main()
   while (true)
   {
     updateOdom();
-    printMaze();
+    // printMaze();
     uint16_t right_dist = tof_distance[1];
     uint16_t left_dist = tof_distance[2];
     // build map while we are moving
@@ -465,7 +475,7 @@ int main()
         printf("Going right\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         // this needs to use the encoder codem (ie turn right for k cm)
-        while (left_count < 105)
+        while (left_count < 110)
         {
           turn_right(35);
         }
@@ -479,7 +489,7 @@ int main()
       {
         printf("Going left\n");
         // this needs to use the encoder code (ie turn right for k cm)
-        while (right_count < 105)
+        while (right_count < 110)
         {
           turn_left(35);
         }
