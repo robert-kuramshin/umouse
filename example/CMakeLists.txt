@@ -12,6 +12,7 @@ if (TARGET tinyusb_device)
     # pull in common dependencies
     target_link_libraries(hello_usb 
             pico_stdlib 
+            pico_flash 
             hardware_gpio 
             hardware_pwm 
             hardware_i2c  
@@ -35,6 +36,7 @@ if (TARGET tinyusb_device)
     add_executable(flash_test
             logflash.c
             flash_test.c
+            map.c
             )
 
     # pull in common dependencies
@@ -42,7 +44,8 @@ if (TARGET tinyusb_device)
             pico_stdlib   
             pico_multicore 
             hardware_flash
-            pico_cyw43_arch_none
+            pico_cyw43_arch_none 
+            pico_flash 
             hardware_rtc)
 
     target_include_directories(flash_test PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -58,7 +61,8 @@ if (TARGET tinyusb_device)
     # pull in common dependencies
     target_link_libraries(flash_erase 
             pico_stdlib    
-            hardware_flash
+            hardware_flash 
+            pico_flash 
             pico_cyw43_arch_none)
 
     target_include_directories(flash_erase PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -75,6 +79,7 @@ if (TARGET tinyusb_device)
     target_link_libraries(flash_read_all 
             pico_stdlib    
             hardware_flash
+            pico_flash 
             pico_cyw43_arch_none)
 
     target_include_directories(flash_read_all PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)

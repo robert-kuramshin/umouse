@@ -3,6 +3,10 @@
 #include "hardware/regs/addressmap.h"
 #include "hardware/sync.h"
 
+
+#include "pico/flash.h"
+
+
 page_t *page_a;
 page_t *page_b;
 page_t *active_page;
@@ -14,10 +18,24 @@ const char *flash_target_contents = (const char *) (XIP_BASE + FLASH_LOG_START_O
 
 void update_header()
 {
-    uint32_t ints = save_and_disable_interrupts();
+    // uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(FLASH_LOG_HEADER_OFFSET, FLASH_SECTOR_SIZE);
     flash_range_program(FLASH_LOG_HEADER_OFFSET, (const uint8_t *) &g_header, FLASH_PAGE_SIZE);
-    restore_interrupts (ints);
+    // restore_interrupts (ints);
+}
+
+void write_flash()
+{
+    // swap active (for now just dump to flash)
+    size_t flash_write_addr =  FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE;
+    // at sector boundry erase the nearest sector(4096 bytes - 16 pages) before writing
+    // if ((flash_write_addr % FLASH_SECTOR_SIZE) == 0)
+    // {
+        flash_range_erase((flash_write_addr / FLASH_SECTOR_SIZE) * FLASH_SECTOR_SIZE, FLASH_SECTOR_SIZE);
+    // }
+    flash_range_program(flash_write_addr, (const uint8_t *)active_page, FLASH_PAGE_SIZE);
+    g_header.write_page_num =  (g_header.write_page_num + 1) % NUM_PAGES;
+    update_header();
 }
 
 // write to in memory page buffer
@@ -49,29 +67,18 @@ void lfprintf(const char *format, ...)
     if (res > remaining)
     {
         *write_addr = '\0'; // cut out the portion of the message written
+        printf("writing to address: %d, 0x%lx\n",g_header.write_page_num, FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE);
 #ifdef LOG_H_DEBUG
-        printf("writing to address: 0x%lx\n",FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE);
 #endif
-        // swap active (for now just dump to flash)
-        size_t flash_write_addr =  FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE;
-        uint32_t ints = save_and_disable_interrupts();
-        // at sector boundry erase the nearest sector(4096 bytes - 16 pages) before writing
-        if ((flash_write_addr % FLASH_SECTOR_SIZE) == flash_write_addr)
-        {
-            flash_range_erase(flash_write_addr, FLASH_SECTOR_SIZE);
-        }
-        flash_range_program(flash_write_addr, (const uint8_t *)active_page, FLASH_PAGE_SIZE);
-        restore_interrupts (ints);
+        flash_safe_execute(write_flash,NULL, 1000);
 #ifdef LOG_H_DEBUG
         printf("write finished\n");
 #endif
         active_page->size = 0;
-        g_header.write_page_num =  (g_header.write_page_num + 1) % NUM_PAGES;
         res = vsnprintf(active_page->data, PAGE_DATA_SIZE, format, args3);
-        update_header();
     }
-    va_end(args3);
     active_page->size += res;
+    va_end(args3);
     //make sure to 0 terminate
 }
 

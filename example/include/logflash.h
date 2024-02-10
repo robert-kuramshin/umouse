@@ -35,6 +35,7 @@ typedef struct log_buffer_header {
     uint32_t magic;
     int size;
     uint32_t write_page_num;
+    char padding[244];
 } log_buffer_header_t;
 
 typedef struct page {

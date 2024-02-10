@@ -20,6 +20,8 @@
 
 #include "logflash.h"
 
+#include "pico/flash.h"
+
 #include "encoders.h"
 #include "map.h"
 
@@ -127,6 +129,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
   if (front_dist < 85)
   {
     smart_stop();
+    printMaze();
 
     mouseUpdateWall(100, DFORWARD);
     moving = false;
@@ -288,6 +291,7 @@ void turn_right(int duty)
 
 void core1_entry()
 {
+  flash_safe_execute_core_init();
   // init tof sensor
   VL53L1X_Result_t results[3] = {0};
   VL53L1X_Status_t status[3] = {0};
@@ -412,6 +416,7 @@ int main()
   sleep_ms(1000);
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
   sleep_ms(1000);
+  printf("size of log_buffer_header_t %d\n", sizeof(log_buffer_header_t));
   printf("Board initialized!\n");
 
   int res = init_log_flash();
@@ -427,6 +432,10 @@ int main()
   // Init motor output right and left (both forward)
   initMotors();
   encoders_register_callbacks();
+
+  // print_last(100);
+
+  lfprintf("Mouse starting....\n");
 
   // wait for TOFs to init
   while (!sensors_ready)
@@ -470,7 +479,7 @@ int main()
       encoders_zero_distances();
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
-      if (mouseCanGoRight() == 1)
+      if (mouseCanGoRight() == 1 || tof_distance[1] > 150)
       {
         printf("Going right\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
@@ -485,7 +494,7 @@ int main()
         mouseUpdateDir(DRIGHT);
         moving = true;
       }
-      else if (mouseCanGoLeft() == 1)
+      else if (mouseCanGoLeft() == 1 || tof_distance[2] > 150)
       {
         printf("Going left\n");
         // this needs to use the encoder code (ie turn right for k cm)
