@@ -85,6 +85,33 @@ void buildGraph(float h_walls[HEIGHT - 1][WIDTH], float v_walls[HEIGHT][WIDTH - 
     }
 }
 
+int dfs(float graph[HEIGHT * WIDTH][HEIGHT * WIDTH], int visited[HEIGHT * WIDTH], int path[HEIGHT * WIDTH], int curr_i, int start, int target) {
+    visited[start] = 1;
+    printf("Node: %d\n", start);
+    for (int i =0; i < HEIGHT * WIDTH; i++) {
+        if (graph[start][i] == 1 && visited[i] == -1) {
+            if (i != target) {
+                path[curr_i] = i;
+                if (dfs(graph, visited, path, curr_i + 1, i, target) == 0) {
+                    continue;
+                } else {
+                    return 1;
+                }
+            }
+            else {
+                path[curr_i] = target;
+                printf("We found target! %d\n", target);
+                i = HEIGHT*WIDTH + 1;
+                return 1;
+            }
+        }
+    }
+    //printf("We added nothing!\n");
+    curr_i = curr_i - 1;
+    return 0;
+}
+
+
 int* getShortestDistancePath(int start, int target)
 {
     // returns a path from start to finish.
@@ -104,35 +131,37 @@ int* getShortestDistancePath(int start, int target)
     int k = 1;
     visited[start] = 1;
     int curr;
-    int paths[MAZE_HEIGHT * MAZE_WIDTH];
+    int path[MAZE_HEIGHT * MAZE_WIDTH] = {0};
     printf("begin!\n");
-    while (i < MAZE_HEIGHT * MAZE_WIDTH)
-    {
-        curr = queue[i];
-        visited[curr] = 1;
-        printf("node %d\n", curr);
-        for (int j = 0; j < MAZE_HEIGHT * MAZE_WIDTH; j++)
-        {
-            if ((graph[curr][j] == 1) && visited[j] == -1)
-            {
-                if (j == target)
-                {
-                    printf("node: %d\n", j);
-                    printf("found a path to target!");
-                    return;
-                }
-                else
-                {
-                    printf("adding node %d\n", j);
-                    queue[k] = j;
-                    k = k + 1;
-                }
-            }
-        }
-        i = i + 1;
-    }
-    printf("no path found?!");
-    return visited;
+    int success = dfs(graph, visited, path, 1, start, target);
+    return path;
+    // while (i < MAZE_HEIGHT * MAZE_WIDTH)
+    // {
+    //     curr = queue[i];
+    //     visited[curr] = 1;
+    //     printf("node %d\n", curr);
+    //     for (int j = 0; j < MAZE_HEIGHT * MAZE_WIDTH; j++)
+    //     {
+    //         if ((graph[curr][j] == 1) && visited[j] == -1)
+    //         {
+    //             if (j == target)
+    //             {
+    //                 printf("node: %d\n", j);
+    //                 printf("found a path to target!");
+    //                 return;
+    //             }
+    //             else
+    //             {
+    //                 printf("adding node %d\n", j);
+    //                 queue[k] = j;
+    //                 k = k + 1;
+    //             }
+    //         }
+    //     }
+    //     i = i + 1;
+    // }
+    // printf("no path found?!");
+    // return visited;
 }
 
 char* getPathInstructions(int* path) {

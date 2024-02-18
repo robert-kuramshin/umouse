@@ -1,7 +1,7 @@
 #include "map.h"
 
-float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
-float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
+// float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
+// float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
 
 // assumes pos at 0,0 facing right, middle of cell
 state_t g_state = {
@@ -256,6 +256,16 @@ void mouseUpdateDir(int dir)
     }
     // assume that we are in the moddle of the cell after the turn
     g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
+}
+
+// call this once every iter of control loop?
+int isMouseInDestinationZone() {
+    int first_x_dest = ((int) MAZE_HEIGHT / 2) - 1;
+    int first_y_dest = ((int) MAZE_WIDTH / 2) - 1;
+    if ((g_state.x == first_x_dest || g_state.x == first_x_dest + 1) && (g_state.y == first_y_dest || g_state.y == first_y_dest + 1)) {
+        return 1;
+    }
+    return -1;
 }
 
 void mouseUpdateOdom(float distance_mm)

@@ -339,6 +339,32 @@ void core1_entry()
   }
 }
 
+void performInstructions(char* instructions) {
+  for (int i = 0; i < sizeof(instructions) / sizeof(char); i++){
+    char instruction = instructions[i];
+    state_t curr_state = mouseGetState();
+    start_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
+    curr_cell = start_cell;
+    while (start_cell != curr_cell) {
+      if (instruction == 'R') {
+        // turn right
+        turn_right(30);
+      }
+      if (instruction == 'L') {
+        // turn left
+      }
+      if (instruction == 'B') {
+        // turn right twice
+      }
+      goForward(30);
+      updateOdom();
+      curr_state = mouseGetState();
+      curr_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
+    }
+    brake(100);
+  }
+}
+
 int main()
 {
   stdio_init_all();
@@ -359,21 +385,21 @@ int main()
   // multicore_launch_core1(core1_entry);
 
 // START TESTING THE MAZE SOLVING CODE START
-  int v_walls[4][3] = {
-    {0, 0, -1},
-    {1, 0, -1},
-    {1, 0, 1},
-    {-1, -1, -1}
-};
-int h_walls[3][4] = {
-    {1, 1, 1, -1},
-    {0, -1, -1, -1},
-    {1, 1, 1, -1}
-};
-  buildGraph(h_walls, v_walls);
-  int* path = getShortestDistancePath(0, 9);
-  char* instructions = getPathInstructions(path);
-  return -1;
+//   int v_walls[4][3] = {
+//     {0, 0, -1},
+//     {1, 0, -1},
+//     {1, 0, 1},
+//     {-1, -1, -1}
+// };
+// int h_walls[3][4] = {
+//     {1, 1, 1, -1},
+//     {0, -1, -1, -1},
+//     {1, 1, 1, -1}
+// };
+//   buildGraph(h_walls, v_walls);
+//   int* path = getShortestDistancePath(0, 9);
+//   char* instructions = getPathInstructions(path);
+//   return -1;
   // END TESTING THE MAZE SOLVING CODE END
   // Init motor output right and left (both forward)
   initMotors();
@@ -411,6 +437,20 @@ int h_walls[3][4] = {
     // printf("Core 2 TOF distance: %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     // printf(" Front dist = %5d, rightDist = %5d\n, leftDist = %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     center_logic(tof_distance[0], right_dist, left_dist);
+    if (isMouseInDestinationZone() == 1)
+    {
+      // I wonder if this check takes long enough for the mouse to make a mistake while moving?
+      brake(100);
+      moving = false;
+      // we'll need some way to restart all this, since we're basically doing a new route back to start position
+      // prob best to turn around first
+      state_t dest_state = mouseGetState();
+      int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
+      buildGraph(h_walls, v_walls);
+      char* instructions = getPath(getShortestDistancePath(0, target));
+      // write this to robs buffer (instructions)
+      return -1;
+    }
     if (!moving)
     {
       sleep_ms(1000);
