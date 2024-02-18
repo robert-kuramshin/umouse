@@ -21,13 +21,22 @@
 #define LEFT_ENCODER_A_PIN (2)
 #define LEFT_ENCODER_B_PIN (3)
 
+extern volatile uint32_t right_count;
+extern volatile uint32_t left_count;
+
+
+extern volatile uint8_t left_moving_forward;
+extern volatile uint8_t right_moving_forward;
+
 void encoders_register_callbacks(void);
 
 void encoders_zero_distances(void);
 
 float encoders_distance_traveled(void);
 
-bool timer_callback(repeating_timer_t *rt);
+// bool timer_callback(repeating_timer_t *rt);
+
+void encoders_register_timer_callback(int period_sec);
 
 #endif // ENCODERS_H
 

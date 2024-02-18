@@ -18,9 +18,16 @@
 #include "VL53L1X_types.h"
 #include <math.h>
 
+#include "logflash.h"
+
+#include "pico/flash.h"
+
 #include "encoders.h"
 #include "map.h"
 #include "engine.h"
+
+#define PICO_DEFAULT_LED_PIN (25)
+
 
 #define RIGHT_MOTOR_A_PIN (14)
 #define RIGHT_MOTOR_B_PIN (15)
@@ -46,6 +53,8 @@
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
 
 volatile uint32_t counter = 0;
+
+volatile bool sensors_ready = false;
 
 volatile uint16_t tof_distance[3] = {151, 50, 50}; // make sure not to do anything till we get a first reading
 
@@ -118,9 +127,11 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
   int duty = 30;
   // This is the condition where you are stopped in a straight route.
-  if (front_dist < 150)
+  if (front_dist < 85)
   {
-    brake(100);
+    smart_stop();
+    printMaze();
+
     mouseUpdateWall(100, DFORWARD);
     moving = false;
     if (right_dist < 100)
@@ -281,6 +292,7 @@ void turn_right(int duty)
 
 void core1_entry()
 {
+  flash_safe_execute_core_init();
   // init tof sensor
   VL53L1X_Result_t results[3] = {0};
   VL53L1X_Status_t status[3] = {0};
@@ -306,6 +318,7 @@ void core1_entry()
   status[2] = tof_init(28, I2C_DEV_ADDR_0);
   printf("TOF 2 status %d\n", status[2]);
   printf("Done configuring sensor!\n");
+  sensors_ready = true;
   bool first_range[3] = {true, true, true};
   // this polling loop runs forever in thread 2
   while (true)
@@ -314,11 +327,12 @@ void core1_entry()
     {
       // Wait until we have new data (front distance)
       uint8_t dataReady;
-      do
-      {
-        status[i] = VL53L1X_CheckForDataReady(addrs[i], &dataReady);
-        sleep_us(1);
-      } while (dataReady == 0);
+      status[i] = VL53L1X_CheckForDataReady(addrs[i], &dataReady);
+      sleep_us(1);
+      if (dataReady == 0) {
+        // skip sensor if not ready
+        continue;
+      }
 
       // Read and display result
       status[i] += VL53L1X_GetResult(addrs[i], &results[i]);
@@ -365,20 +379,71 @@ void performInstructions(char* instructions) {
   }
 }
 
+#define THR_CNT (1)
+#define THR_SLP (5)
+void smart_stop()
+{
+  // first brake
+  brake(100);
+
+  // record original counts and direction
+  uint32_t last_right = right_count;
+  uint32_t last_left = left_count;
+  uint8_t left_orig_dir = left_moving_forward;
+  uint8_t right_orig_dir = right_moving_forward;
+
+  // wait for period
+  sleep_ms(THR_SLP);
+  bool run = true;
+  while (run)
+  {
+    run = false;
+    if (left_count - last_left > THR_CNT && (left_orig_dir > 0) == (left_moving_forward > 0))
+    {
+      // if count change > threshold and direction hasn't changed
+      run = true;
+      printf("hardbreak left %d \n", left_count - last_left);
+      // apply full duty in opposite direction
+      moveLeftMotor(100, left_orig_dir ? -1 : 1);
+      sleep_ms(THR_SLP);
+    } else {
+      moveLeftMotor(100,0);
+    }
+    if (right_count - last_right > THR_CNT && (right_orig_dir > 0) == (right_moving_forward > 0))
+    {
+      // if count change > threshold and direction hasn't changed
+      run = true;
+      printf("hardbreak right %d\n", right_count - last_right);
+      // apply full duty in opposite direction
+      moveRightMotor(100, right_orig_dir ? -1 : 1);
+      sleep_ms(THR_SLP);
+    } else {
+      moveRightMotor(100,0);
+    }
+  }
+}
+
+// void smartStart()
+// {
+//   // init some drive strength
+//   // keep increasing power until encoders start reading
+//   // drop drive speed
+// }
+
+
 int main()
 {
   stdio_init_all();
   adc_init();
 
-  if (cyw43_arch_init())
-  {
-    printf("Wi-Fi init failed");
-    return -1;
-  }
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+  gpio_init(PICO_DEFAULT_LED_PIN);
+  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    
+  gpio_put(PICO_DEFAULT_LED_PIN, 1);
   sleep_ms(1000);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
   sleep_ms(1000);
+  printf("size of log_buffer_header_t %d\n", sizeof(log_buffer_header_t));
   printf("Board initialized!\n");
   
 
@@ -401,18 +466,34 @@ int main()
 //   char* instructions = getPathInstructions(path);
 //   return -1;
   // END TESTING THE MAZE SOLVING CODE END
+  int res = init_log_flash();
+  if (res != 0)
+  {
+    printf("error initing log flash\n");
+  }
+
+  // print_last(2);
+
+  multicore_launch_core1(core1_entry);
+  // while (true) {;}
   // Init motor output right and left (both forward)
   initMotors();
-  gpio_pull_up(RIGHT_ENCODER_A_PIN);
-  gpio_pull_up(RIGHT_ENCODER_B_PIN);
-  gpio_pull_up(LEFT_ENCODER_A_PIN);
-  gpio_pull_up(LEFT_ENCODER_B_PIN);
   encoders_register_callbacks();
 
+  // print_last(100);
+
+  lfprintf("Mouse starting....\n");
+
+  // wait for TOFs to init
+  while (!sensors_ready)
+  {
+    sleep_ms(50);
+  }
+  int turn_around_counter = 0;
   while (true)
   {
     updateOdom();
-    printMaze();
+    // printMaze();
     uint16_t right_dist = tof_distance[1];
     uint16_t left_dist = tof_distance[2];
     // build map while we are moving
@@ -455,35 +536,53 @@ int main()
     {
       sleep_ms(1000);
       printf("We have stopped moving!");
+      //zero encoders before move
+      encoders_zero_distances();
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
-      if (mouseCanGoRight() == 1)
+      if (mouseCanGoRight() == 1 || tof_distance[1] > 150)
       {
         printf("Going right\n");
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
         // this needs to use the encoder codem (ie turn right for k cm)
-        while (tof_distance[0] < 150)
+        while (left_count < 110)
         {
-          turn_right(30);
+          turn_right(35);
         }
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-        brake(100);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        smart_stop();
         sleep_ms(1000);
         mouseUpdateDir(DRIGHT);
         moving = true;
       }
-      else if (mouseCanGoLeft() == 1)
+      else if (mouseCanGoLeft() == 1 || tof_distance[2] > 150)
       {
         printf("Going left\n");
         // this needs to use the encoder code (ie turn right for k cm)
-        while (tof_distance[0] < 150)
+        while (right_count < 110)
         {
-          turn_left(30);
+          turn_left(35);
         }
-        brake(100);
+        smart_stop();
         sleep_ms(1000);
         mouseUpdateDir(DLEFT);
         moving = true;
+      } else {
+        if (turn_around_counter > 10)
+        {
+          turn_around_counter = 0;
+          printf("turning around\n");
+          while (right_count < 160)
+          {
+            turn_left(35);
+          }
+          smart_stop();
+          sleep_ms(1000);
+          mouseUpdateDir(DBACKWARDS);
+          moving = true;
+        } else {
+          turn_around_counter++;
+        }
       }
       // zero encoders after turn
       encoders_zero_distances();
