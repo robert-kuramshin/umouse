@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include "pico/mutex.h"
 #include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
@@ -49,6 +50,14 @@
 
 #define PATH_LENGTH (10000)
 
+#define MPU9250_I2C_ADDR (0x68)
+
+#include "Arduino.h"
+#include "Wire.h"
+#include "MPU9250.h"
+
+MPU9250 mpu; // You can also use MPU9255 as is
+
 
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
 
@@ -66,6 +75,11 @@ uint rrchan;
 uint lslice;
 uint lfchan;
 uint lrchan;
+int break_dist = 20;
+void smart_stop();
+void moveLeftMotor(int duty, int direction);
+void moveRightMotor(int duty, int direction);
+void goForward(int duty);
 
 // void gpio_callback_a(uint gpio, uint32_t events) {
 //     printf("event A\n");
@@ -289,6 +303,11 @@ void turn_right(int duty)
   moveRightMotor(duty, -1);
   moveLeftMotor(duty, 1);
 }
+volatile float angle = 0;
+mutex_t m;
+float angle_offset = 0;
+int skip_readings = 0;
+int skip_readings_thresh = 400;
 
 void core1_entry()
 {
@@ -296,11 +315,28 @@ void core1_entry()
   // init tof sensor
   VL53L1X_Result_t results[3] = {0};
   VL53L1X_Status_t status[3] = {0};
-  i2c_init(i2c0, VL53L1X_I2C_BAUDRATE);
-  gpio_set_function(16, GPIO_FUNC_I2C);
-  gpio_set_function(17, GPIO_FUNC_I2C);
-  gpio_pull_up(16);
-  gpio_pull_up(17);
+  
+  
+  Wire.begin();
+
+  
+  mpu.verbose(true);
+  mpu.setup(0x68);
+
+  mpu.calibrateAccelGyro();
+
+  // mpu.setMagBias(-507.45,81.90,122.26);
+  // mpu.setMagScale(0.92, 1.07, 1.02 );
+
+// AK8963 mag biases (mG)
+// -512.79, 23.15, 148.09
+// AK8963 mag scale (mG)
+// 0.91, 1.05, 1.06
+
+  mpu.setMagBias(-510.12,52.525, 135.175);
+  mpu.setMagScale(0.915, 1.06, 1.04 );
+
+
   gpio_init(22);
   gpio_set_dir(22, GPIO_OUT);
   gpio_put(22, 0);
@@ -323,12 +359,37 @@ void core1_entry()
   // this polling loop runs forever in thread 2
   while (true)
   {
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 4; i++)
     {
+      // try reading mpu (nonblocking)
+      if(mpu.update())
+      {
+          if(skip_readings < skip_readings_thresh)
+          {
+            skip_readings++;
+            continue;
+          }
+          float k = mpu.getYaw();
+          if (k < 0)
+          {
+            k = k + 360;
+          }
+          if (angle_offset == 0)
+          {
+            angle_offset = 360-(k);
+            printf("Angle offset %f, angle %f\n", angle_offset, k);
+
+          }
+          // mutex_enter_blocking(&m);
+          angle = fmod(k + angle_offset, 360);
+          printf("core 1: angle %f, k: %f of: %f\n", angle, k, angle_offset);
+          // mutex_exit(&m);
+
+      }
+
       // Wait until we have new data (front distance)
       uint8_t dataReady;
       status[i] = VL53L1X_CheckForDataReady(addrs[i], &dataReady);
-      sleep_us(1);
       if (dataReady == 0) {
         // skip sensor if not ready
         continue;
@@ -358,43 +419,42 @@ void performInstructions(char* instructions) {
 }
 
 #define THR_CNT (1)
-#define THR_SLP (5)
+#define THR_SLP (1)
 void smart_stop()
 {
   // first brake
-  brake(100);
+  // brake(100);
 
   // record original counts and direction
   uint32_t last_right = right_count;
   uint32_t last_left = left_count;
   uint8_t left_orig_dir = left_moving_forward;
   uint8_t right_orig_dir = right_moving_forward;
+  
+  moveLeftMotor(100, left_moving_forward ? -1 : 1);
+  moveRightMotor(100, right_moving_forward ? -1 : 1);
 
-  // wait for period
-  sleep_ms(THR_SLP);
   bool run = true;
   while (run)
   {
     run = false;
-    if (left_count - last_left > THR_CNT && (left_orig_dir > 0) == (left_moving_forward > 0))
+    if ((left_orig_dir > 0) == (left_moving_forward > 0))
     {
       // if count change > threshold and direction hasn't changed
       run = true;
       printf("hardbreak left %d \n", left_count - last_left);
       // apply full duty in opposite direction
       moveLeftMotor(100, left_orig_dir ? -1 : 1);
-      sleep_ms(THR_SLP);
     } else {
       moveLeftMotor(100,0);
     }
-    if (right_count - last_right > THR_CNT && (right_orig_dir > 0) == (right_moving_forward > 0))
+    if ((right_orig_dir > 0) == (right_moving_forward > 0))
     {
       // if count change > threshold and direction hasn't changed
       run = true;
       printf("hardbreak right %d\n", right_count - last_right);
       // apply full duty in opposite direction
       moveRightMotor(100, right_orig_dir ? -1 : 1);
-      sleep_ms(THR_SLP);
     } else {
       moveRightMotor(100,0);
     }
@@ -410,9 +470,14 @@ void smart_stop()
 
 int explorationRun() {
   lfprintf("Mouse starting....\n");
+  gpio_put(PICO_DEFAULT_LED_PIN, 1);
+  sleep_ms(1000);
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  sleep_ms(1000);
 
-  // wait for TOFs to init
-  while (!sensors_ready)
+
+  // wait for TOFs and gyro to init
+  while (!sensors_ready || skip_readings < skip_readings_thresh)
   {
     sleep_ms(50);
   }
@@ -461,31 +526,96 @@ int explorationRun() {
       encoders_zero_distances();
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
+
+      int curr_quad;
+      int low_quad = (int)(angle / 90);
+      int high_quad = low_quad + 1;
+      if (angle - 90 * low_quad > 90 * high_quad - angle) {
+        curr_quad = high_quad;
+      } else {
+        curr_quad = low_quad;
+      }
+
       if (mouseCanGoRight() == 1 || tof_distance[1] > 150)
       {
+        int count = 0;
         printf("Going right\n");
+        printf("angle %f\n",angle);
+        // int curr_quad = (int) (angle / 90);
+
+        // mutex_enter_blocking(&m);
+        int target_quad = (curr_quad %4) + 1;
+        float left_c = sin(angle * PI / 180);
+        float right_c = sin((target_quad * 90 - break_dist) * PI / 180);
+        // mutex_exit(&m);
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        // this needs to use the encoder codem (ie turn right for k cm)
-        while (left_count < 110)
-        {
-          turn_right(35);
+        if (target_quad == 4 || target_quad == 1) {
+          while (left_c < right_c) {
+            // mutex_enter_blocking(&m);
+            printf("angle %f, while %f < %f\n",angle, left_c, right_c);
+            left_c = sin(angle * PI / 180);
+            right_c = sin((target_quad * 90 - break_dist) * PI / 180);
+            // mutex_exit(&m);
+            turn_right(35);
+            // sleep_ms(1);
+          }
+          printf("angle %f, while %f > %f\n",angle, left_c, right_c);
         }
+        else {
+          while (left_c > right_c) {
+            // mutex_enter_blocking(&m);
+            printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+            left_c = sin(angle * PI / 180);
+            right_c = sin((target_quad * 90 - break_dist) * PI / 180);
+            // mutex_exit(&m);
+            turn_right(35);
+            // sleep_ms(1);
+          }
+          printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+        }
+        printf("count %d\n", count);
+        printf("angle %f\n",angle);
+        printf("done turning\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
         smart_stop();
+        // gpio_put(PICO_DEFAULT_LED_PIN, 1);
         sleep_ms(1000);
+        // gpio_put(PICO_DEFAULT_LED_PIN, 0);
         mouseUpdateDir(DRIGHT);
         moving = true;
       }
       else if (mouseCanGoLeft() == 1 || tof_distance[2] > 150)
       {
         printf("Going left\n");
-        // this needs to use the encoder code (ie turn right for k cm)
-        while (right_count < 110)
+        int target_quad = (curr_quad + 3) % 4;
+        float left_c = sin(angle * PI / 180);
+        float right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        if (target_quad == 0 || target_quad == 3)
         {
-          turn_left(35);
+          while(left_c > right_c)
+          {
+            turn_left(35);
+            printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+            left_c = sin(angle * PI / 180);
+            right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+          }
+        }else {
+          while (left_c < right_c)
+          {
+            turn_left(35);
+            printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+            left_c = sin(angle * PI / 180);
+            right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+          }
         }
+        printf("angle %f\n",angle);
+        printf("done turning\n");
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
         smart_stop();
+        // gpio_put(PICO_DEFAULT_LED_PIN, 1);
         sleep_ms(1000);
+        // gpio_put(PICO_DEFAULT_LED_PIN, 0);
         mouseUpdateDir(DLEFT);
         moving = true;
       } else {

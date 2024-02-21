@@ -1,17 +1,18 @@
 if (TARGET tinyusb_device)
     add_executable(hello_usb
-            hello_usb.c
-            logflash.c
-            encoders.c
-            map.c
-            VL53L1X_api.c
-            VL53L1X_calibration.c
-            VL53L1X_platform.c
+            hello_usb.cpp
+            logflash.cpp
+            encoders.cpp
+            map.cpp
+            VL53L1X_api.cpp
+            VL53L1X_calibration.cpp
+            VL53L1X_platform.cpp
             engine.c
             )
 
     # pull in common dependencies
     target_link_libraries(hello_usb 
+        pico_sync
             pico_stdlib 
             pico_flash 
             hardware_gpio 
@@ -20,6 +21,7 @@ if (TARGET tinyusb_device)
             hardware_adc 
             pico_cyw43_arch_none 
             pico_multicore 
+            pac-mpu9250
             hardware_flash)
 
     target_include_directories(hello_usb PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -35,9 +37,9 @@ if (TARGET tinyusb_device)
     pico_add_extra_outputs(hello_usb)
 
     add_executable(flash_test
-            logflash.c
-            flash_test.c
-            map.c
+            logflash.cpp
+            flash_test.cpp
+            map.cpp
             )
 
     # pull in common dependencies
@@ -55,8 +57,8 @@ if (TARGET tinyusb_device)
     pico_add_extra_outputs(flash_test)
 
     add_executable(flash_erase
-            logflash.c
-            flash_erase.c
+            logflash.cpp
+            flash_erase.cpp
             )
 
     # pull in common dependencies
@@ -72,8 +74,8 @@ if (TARGET tinyusb_device)
     pico_add_extra_outputs(flash_erase)
 
     add_executable(flash_read_all
-            logflash.c
-            flash_read_all.c
+            logflash.cpp
+            flash_read_all.cpp
             )
 
     # pull in common dependencies
@@ -89,8 +91,8 @@ if (TARGET tinyusb_device)
     pico_add_extra_outputs(flash_read_all)
 
     add_executable(test_odometry
-            encoders.c
-            test_odometry.c
+            encoders.cpp
+            test_odometry.cpp
             )
 
     # pull in common dependencies
@@ -101,6 +103,25 @@ if (TARGET tinyusb_device)
     pico_enable_stdio_usb(test_odometry 1)
     pico_enable_stdio_uart(test_odometry 0)
     pico_add_extra_outputs(test_odometry)
+
+
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/pico-arduino-compat/libs/mpu9250)
+    add_executable(mpu9250
+    mpu9250.cpp
+            )
+
+    # pull in common dependencies
+    target_link_libraries(mpu9250 
+                hardware_i2c  
+            pico_stdlib
+            pac-mpu9250
+            )
+
+
+    target_include_directories(mpu9250 PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+    pico_enable_stdio_usb(mpu9250 1)
+    pico_enable_stdio_uart(mpu9250 0)
+    pico_add_extra_outputs(mpu9250)
 elseif(PICO_ON_DEVICE)
     message(WARNING "not building hello_usb because TinyUSB submodule is not initialized in the SDK")
 endif()

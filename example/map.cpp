@@ -19,7 +19,7 @@ void getHWalls(float walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
 void printMaze()
 {
     lfprintf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%f\n",
-           g_state.x, g_state.y, g_state.or, g_state.dist_in_cell_mm);
+           g_state.x, g_state.y, g_state.ori, g_state.dist_in_cell_mm);
     for (int x = 0; x < MAZE_HEIGHT; x++)
     {
         lfprintf("v|");
@@ -65,7 +65,7 @@ int mouseCanGoRight()
 
     int x = g_state.x;
     int y = g_state.y;
-    int facing = g_state.or ;
+    int facing = g_state.ori ;
     switch (facing)
     {
     case ORIGHT:
@@ -108,7 +108,7 @@ int mouseCanGoLeft()
 
     int x = g_state.x;
     int y = g_state.y;
-    int facing = g_state.or ;
+    int facing = g_state.ori ;
 
     switch (facing)
     {
@@ -166,7 +166,7 @@ void mouseUpdateWall(float confidence, int dir)
     }
     int x = g_state.x;
     int y = g_state.y;
-    int facing = g_state.or ;
+    int facing = g_state.ori ;
 
     switch (facing)
     {
@@ -257,11 +257,11 @@ void mouseUpdateDir(int dir)
 {
     if (dir == DRIGHT)
     {
-        g_state.or = (g_state.or +1) % 4;
+        g_state.ori = (g_state.ori +1) % 4;
     }
     else
     {
-        g_state.or = (g_state.or +3) % 4;
+        g_state.ori = (g_state.ori +3) % 4;
     }
     // assume that we are in the moddle of the cell after the turn
     g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
@@ -285,7 +285,7 @@ void mouseUpdateOdom(float distance_mm)
     g_state.dist_in_cell_mm += distance_mm;
     while (g_state.dist_in_cell_mm > CELL_WIDHT_MM)
     {
-        switch (g_state.or)
+        switch (g_state.ori)
         {
         case ORIGHT:
             g_state.y += 1;

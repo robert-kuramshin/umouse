@@ -72,7 +72,7 @@ int main() {
     datetime_t start = t;
 
     int num_lines=500;
-    char *data = malloc(82);
+    char *data = (char *)malloc(82);
     sprintf(data,"ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
     int min_size = 1;
     int max_size = 80;

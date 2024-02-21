@@ -24,7 +24,7 @@ void update_header()
     // restore_interrupts (ints);
 }
 
-void write_flash()
+void write_flash(void *)
 {
     // swap active (for now just dump to flash)
     size_t flash_write_addr =  FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE;
