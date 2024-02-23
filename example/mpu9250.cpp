@@ -8,25 +8,16 @@
 
 #include "pico/stdlib.h"
 
-#define MPU9250_I2C_ADDR (0x68)
+#include "pico/float.h"
 
-#include "Arduino.h"
-#include "Wire.h"
-#include "MPU9250.h"
+// #define MPU9250_I2C_ADDR (0x68)
 
-MPU9250 mpu; // You can also use MPU9255 as is
+// #include "Arduino.h"
+// #include "Wire.h"
+// #include "MPU9250.h"
 
-// static void read_registers(uint8_t reg, uint8_t *buf, uint16_t len) {
-//     // For this particular device, we send the device the register we want to read
-//     // first, then subsequently read from the device. The register is auto incrementing
-//     // so we don't need to keep sending the register we want, just the first.
+// MPU9250 mpu; // You can also use MPU9255 as is
 
-//     reg |= 1;
-//     i2c_write_blocking(i2c0, MPU9250_I2C_ADDR, &reg, 1, false);
-//     sleep_ms(10);
-//     i2c_read_blocking(i2c0, MPU9250_I2C_ADDR, buf, len, false);
-//     sleep_ms(10);
-// }
 
 // static void mpu9250_reset() {
 //     // Two byte reset. First byte register, second byte data
@@ -65,29 +56,101 @@ MPU9250 mpu; // You can also use MPU9255 as is
 
 //     *temp = buffer[0] << 8 | buffer[1];
 // }
+#define HMC5883L_ADDR 0x1E
+#define CONFIG_REG_A 0x00
+#define CONFIG_REG_B 0x01
+#define MODE_REG 0x02
+#define DATA_REG 0x03
 
+
+static void read_registers(uint8_t reg, uint8_t *buf, uint16_t len) {
+    reg |= 1;
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, &reg, 1, false);
+    sleep_ms(10);
+    i2c_read_blocking(i2c0, HMC5883L_ADDR, buf, len, false);
+    sleep_ms(10);
+}
+
+#define LSB_TO_UT (100.0 / 1090.0)
 
 int main() {
     stdio_init_all();
 
-    // i2c_init(i2c0, 100000);
+    i2c_init(i2c0, 100000);
 
-    // gpio_set_function(16, GPIO_FUNC_I2C);
-    // gpio_set_function(17, GPIO_FUNC_I2C);
+    gpio_set_function(16, GPIO_FUNC_I2C);
+    gpio_set_function(17, GPIO_FUNC_I2C);
 
-    // gpio_pull_up(16);
-    // gpio_pull_up(17);
-    Wire.begin();
+    gpio_pull_up(16);
+    gpio_pull_up(17);
+    // Wire.begin();
 
     sleep_ms(3000);
 
+    uint8_t data[2] = {CONFIG_REG_A, 0x70};
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+    data[0] = CONFIG_REG_B;
+    data[1] = 0x20;
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+    data[0] = MODE_REG;
+    data[1] = 0x00;
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
 
-    printf("Wires %d %d\n",PIN_WIRE0_SDA,PIN_WIRE0_SCL);
+    float x,y,z;
+    uint8_t rawdata[6] = {0};
 
-    mpu.verbose(true);
-    mpu.setup(0x68);
+    float min[3] = {0};
+    float max[3] = {0};
 
-    mpu.calibrateAccelGyro();
+    for(int i =0;i<1000;i++){
+        read_registers(DATA_REG, rawdata, 6);
+        x = (rawdata[0] << 8) | rawdata[1];
+        z = (rawdata[2] << 8) | rawdata[3];
+        y = (rawdata[4] << 8) | rawdata[5];
+        if (x > 32767)
+            x -= 65536;
+        if (y > 32767)
+            y -= 65536;
+        if (z > 32767)
+            z -= 65536;
+    
+        x *= LSB_TO_UT;
+        y *= LSB_TO_UT;
+        z *= LSB_TO_UT;
+
+        // x -= -28.027523;
+        // y -= -8.944954;
+        // z -= 11.972478;
+
+        float heading = atan2f(y, x);
+
+        heading = heading * 180 / 3.14159265;
+
+        if (heading < 0)
+        {
+            heading += 360;
+        }
+
+        if (x < min[0])
+            min[0] = x;
+        if (y < min[1])
+            min[1] = y;
+        if (z < min[2])
+            min[2] = z;
+        if (x > max[0])
+            max[0] = x;
+        if (y > max[1])
+            max[1] = y;
+        if (z > max[2])
+            max[2] = z;
+        printf("Magnetic field in X: %.2f uT, Y: %.2f uT, Z: %.2f uT, Heading: %.2f°\n", x, y, z, heading);
+        sleep_ms(2);
+    }
+    float x_offset = (max[0] + min[0]) / 2;
+    float y_offset = (max[1] + min[1]) / 2;
+    float z_offset = (max[2] + min[2]) / 2;
+
+    printf("%f %f %f\n", x_offset, y_offset, z_offset);
 
     // mpu.setMagBias(-439.79,33.83,-161.86);
     // mpu.setMagScale(0.94,1.34,0.84);
@@ -102,19 +165,19 @@ int main() {
     // mpu.setMagBias(-507.45,81.90,122.26);
     // mpu.setMagScale(0.92, 1.07, 1.02 );
 
-    mpu.calibrateMag();
+    // mpu.calibrateMag();
 
-    for(int i =0;i<20000;i++){
-        if (mpu.update()) {
-            int16_t x = mpu.getMagX();
-            int16_t y = mpu.getMagY();
-            float m = atan2(x, -y) * 180 / PI + 180;
-            Serial.print(mpu.getYaw()); Serial.print(", ");
-            Serial.print(mpu.getPitch()); Serial.print(", ");
-            Serial.println(mpu.getRoll());
-        }
-        sleep_ms(12);
-    }
+    // for(int i =0;i<20000;i++){
+    //     if (mpu.update()) {
+    //         int16_t x = mpu.getMagX();
+    //         int16_t y = mpu.getMagY();
+    //         float m = atan2(x, -y) * 180 / PI + 180;
+    //         Serial.print(mpu.getYaw()); Serial.print(", ");
+    //         Serial.print(mpu.getPitch()); Serial.print(", ");
+    //         Serial.println(mpu.getRoll());
+    //     }
+    //     sleep_ms(12);
+    // }
 
     // mpu9250_reset();
 

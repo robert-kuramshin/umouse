@@ -27,14 +27,16 @@
 #include "map.h"
 #include "engine.h"
 
+#include "pico/float.h"
+
 #define PICO_DEFAULT_LED_PIN (25)
 
 
-#define RIGHT_MOTOR_A_PIN (14)
-#define RIGHT_MOTOR_B_PIN (15)
+#define RIGHT_MOTOR_A_PIN (15)
+#define RIGHT_MOTOR_B_PIN (14)
 
-#define LEFT_MOTOR_A_PIN (1)
-#define LEFT_MOTOR_B_PIN (0)
+#define LEFT_MOTOR_A_PIN (0)
+#define LEFT_MOTOR_B_PIN (1)
 
 #define WRAP (50000)
 
@@ -50,13 +52,8 @@
 
 #define PATH_LENGTH (10000)
 
-#define MPU9250_I2C_ADDR (0x68)
+#define PI (3.14159)
 
-#include "Arduino.h"
-#include "Wire.h"
-#include "MPU9250.h"
-
-MPU9250 mpu; // You can also use MPU9255 as is
 
 
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
@@ -139,7 +136,7 @@ void updateOdom()
 
 void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
-  int duty = 30;
+  int duty = 35;
   // This is the condition where you are stopped in a straight route.
   if (front_dist < 85)
   {
@@ -303,11 +300,37 @@ void turn_right(int duty)
   moveRightMotor(duty, -1);
   moveLeftMotor(duty, 1);
 }
+
+#define HMC5883L_ADDR 0x1E
+#define CONFIG_REG_A 0x00
+#define CONFIG_REG_B 0x01
+#define MODE_REG 0x02
+#define DATA_REG 0x03
+#define LSB_TO_UT (100.0 / 1090.0)
+
+void init_mpu()
+{
+
+    uint8_t data[2] = {CONFIG_REG_A, 0x70};
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+    data[0] = CONFIG_REG_B;
+    data[1] = 0x20;
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+    data[0] = MODE_REG;
+    data[1] = 0x00;
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+}
+
+
+static void read_registers(uint8_t reg, uint8_t *buf, uint16_t len) {
+    reg |= 1;
+    i2c_write_blocking(i2c0, HMC5883L_ADDR, &reg, 1, false);
+    i2c_read_blocking(i2c0, HMC5883L_ADDR, buf, len, false);
+}
+
 volatile float angle = 0;
 mutex_t m;
 float angle_offset = 0;
-int skip_readings = 0;
-int skip_readings_thresh = 400;
 
 void core1_entry()
 {
@@ -316,14 +339,15 @@ void core1_entry()
   VL53L1X_Result_t results[3] = {0};
   VL53L1X_Status_t status[3] = {0};
   
-  
-  Wire.begin();
+  i2c_init(i2c0, 100000);
 
-  
-  mpu.verbose(true);
-  mpu.setup(0x68);
+  gpio_set_function(16, GPIO_FUNC_I2C);
+  gpio_set_function(17, GPIO_FUNC_I2C);
 
-  mpu.calibrateAccelGyro();
+  gpio_pull_up(16);
+  gpio_pull_up(17);
+  
+  // mpu.calibrateAccelGyro();
 
   // mpu.setMagBias(-507.45,81.90,122.26);
   // mpu.setMagScale(0.92, 1.07, 1.02 );
@@ -333,9 +357,10 @@ void core1_entry()
 // AK8963 mag scale (mG)
 // 0.91, 1.05, 1.06
 
-  mpu.setMagBias(-510.12,52.525, 135.175);
-  mpu.setMagScale(0.915, 1.06, 1.04 );
+  // mpu.setMagBias(-510.12,52.525, 135.175);
+  // mpu.setMagScale(0.915, 1.06, 1.04 );
 
+  init_mpu();
 
   gpio_init(22);
   gpio_set_dir(22, GPIO_OUT);
@@ -356,36 +381,64 @@ void core1_entry()
   printf("Done configuring sensor!\n");
   sensors_ready = true;
   bool first_range[3] = {true, true, true};
+  float x,y,z;
+  float xl = 0,yl = 0,zl = 0;
+  uint8_t rawdata[6] = {0};
+
   // this polling loop runs forever in thread 2
   while (true)
   {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 3; i++)
     {
       // try reading mpu (nonblocking)
-      if(mpu.update())
-      {
-          if(skip_readings < skip_readings_thresh)
-          {
-            skip_readings++;
-            continue;
-          }
-          float k = mpu.getYaw();
-          if (k < 0)
-          {
-            k = k + 360;
-          }
-          if (angle_offset == 0)
-          {
-            angle_offset = 360-(k);
-            printf("Angle offset %f, angle %f\n", angle_offset, k);
+      read_registers(DATA_REG, rawdata, 6);
+      x = (rawdata[0] << 8) | rawdata[1];
+      z = (rawdata[2] << 8) | rawdata[3];
+      y = (rawdata[4] << 8) | rawdata[5];
+      if (x > 32767)
+          x -= 65536;
+      if (y > 32767)
+          y -= 65536;
+      if (z > 32767)
+          z -= 65536;
+  
+      x *= LSB_TO_UT;
+      y *= LSB_TO_UT;
+      z *= LSB_TO_UT;
 
-          }
-          // mutex_enter_blocking(&m);
-          angle = fmod(k + angle_offset, 360);
-          printf("core 1: angle %f, k: %f of: %f\n", angle, k, angle_offset);
-          // mutex_exit(&m);
+      // apply calibration
+      x -= -28.027523;
+      y -= -8.944954;
+      z -= 11.972478;
+
+      // smooth a bit
+      // if (xl != 0)
+      // {
+      //   x = (x + xl * 4) / 5;
+      //   y = (y + yl * 4) / 5;
+      //   z = (z + zl * 4) / 5;
+      //   xl = x;
+      //   yl = y;
+      //   zl = z;
+      // }
+
+      float k = atan2f(x, y);
+
+      k = k * 180 / 3.14159265;
+      if (k < 0)
+      {
+        k = k + 360;
+      }
+      if (angle_offset == 0)
+      {
+        angle_offset = 360-(k);
+        printf("Angle offset %f, angle %f\n", angle_offset, k);
 
       }
+      // mutex_enter_blocking(&m);
+      angle = fmod(k + angle_offset, 360);
+      printf("core 1: angle %f, k: %f of: %f\n", angle, k, angle_offset);
+          // mutex_exit(&m);
 
       // Wait until we have new data (front distance)
       uint8_t dataReady;
@@ -477,7 +530,7 @@ int explorationRun() {
 
 
   // wait for TOFs and gyro to init
-  while (!sensors_ready || skip_readings < skip_readings_thresh)
+  while (!sensors_ready || angle == 0)
   {
     sleep_ms(50);
   }
