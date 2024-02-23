@@ -535,6 +535,103 @@ void smart_stop()
 //   // drop drive speed
 // }
 
+void goLeft()
+{
+  int curr_quad;
+  int low_quad = (int)(angle / 90);
+  int high_quad = low_quad + 1;
+  if (angle - 90 * low_quad > 90 * high_quad - angle)
+  {
+    curr_quad = high_quad;
+  }
+  else
+  {
+    curr_quad = low_quad;
+  }
+  int target_quad = (curr_quad + 3) % 4;
+  float left_c = sin(angle * PI / 180);
+  float right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+  gpio_put(PICO_DEFAULT_LED_PIN, 1);
+  turn_left(35);
+  sleep_ms(50);
+  if (target_quad == 0 || target_quad == 3)
+  {
+    while (left_c > right_c)
+    {
+      turn_left(30);
+      printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+      left_c = sin(angle * PI / 180);
+      right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+    }
+  }
+  else
+  {
+    while (left_c < right_c)
+    {
+      turn_left(30);
+      printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+      left_c = sin(angle * PI / 180);
+      right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+    }
+  }
+  printf("angle %f\n", angle);
+  printf("done turning\n");
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  smart_stop();
+  mouseUpdateDir(DLEFT);
+  encoders_zero_distances();
+}
+
+void goRight() {
+  int curr_quad;
+  int low_quad = (int)(angle / 90);
+  int high_quad = low_quad + 1;
+  if (angle - 90 * low_quad > 90 * high_quad - angle)
+  {
+    curr_quad = high_quad;
+  }
+  else
+  {
+    curr_quad = low_quad;
+  }
+  
+  int target_quad = (curr_quad % 4) + 1;
+  float left_c = sin(angle * PI / 180);
+  float right_c = sin((target_quad * 90 - break_dist) * PI / 180);
+
+  gpio_put(PICO_DEFAULT_LED_PIN, 1);
+  turn_right(35);
+  sleep_ms(50);
+  if (target_quad == 4 || target_quad == 1)
+  {
+    while (left_c < right_c)
+    {
+      printf("angle %f, while %f < %f\n", angle, left_c, right_c);
+      left_c = sin(angle * PI / 180);
+      right_c = sin((target_quad * 90 - break_dist) * PI / 180);
+      turn_right(30);
+    }
+    printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+  }
+  else
+  {
+    while (left_c > right_c)
+    {
+      printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+      left_c = sin(angle * PI / 180);
+      right_c = sin((target_quad * 90 - break_dist) * PI / 180);
+      turn_right(30);
+    }
+    printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+  }
+  printf("angle %f\n", angle);
+  printf("done turning\n");
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  smart_stop();
+  mouseUpdateDir(DRIGHT); 
+  encoders_zero_distances();
+}
+
 int explorationRun() {
   lfprintf("Mouse starting....\n");
   gpio_put(PICO_DEFAULT_LED_PIN, 1);
@@ -593,108 +690,24 @@ int explorationRun() {
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
 
-      int curr_quad;
-      int low_quad = (int)(angle / 90);
-      int high_quad = low_quad + 1;
-      if (angle - 90 * low_quad > 90 * high_quad - angle)
-      {
-        curr_quad = high_quad;
-      }
-      else
-      {
-        curr_quad = low_quad;
-      }
-
       if (mouseCanGoRight() == 1 || tof_distance[1] > 150)
       {
-        int count = 0;
         printf("Going right\n");
         printf("angle %f\n", angle);
         // int curr_quad = (int) (angle / 90);
 
-        // mutex_enter_blocking(&m);
-        int target_quad = (curr_quad % 4) + 1;
-        float left_c = sin(angle * PI / 180);
-        float right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-        // mutex_exit(&m);
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        turn_right(35);
-        sleep_ms(50);
-        if (target_quad == 4 || target_quad == 1)
-        {
-          while (left_c < right_c)
-          {
-            // mutex_enter_blocking(&m);
-            printf("angle %f, while %f < %f\n", angle, left_c, right_c);
-            left_c = sin(angle * PI / 180);
-            right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-            // mutex_exit(&m);
-            turn_right(30);
-            // sleep_ms(1);
-          }
-          printf("angle %f, while %f > %f\n", angle, left_c, right_c);
-        }
-        else
-        {
-          while (left_c > right_c)
-          {
-            // mutex_enter_blocking(&m);
-            printf("angle %f, while %f > %f\n", angle, left_c, right_c);
-            left_c = sin(angle * PI / 180);
-            right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-            // mutex_exit(&m);
-            turn_right(30);
-            // sleep_ms(1);
-          }
-          printf("angle %f, while %f > %f\n", angle, left_c, right_c);
-        }
-        printf("count %d\n", count);
-        printf("angle %f\n", angle);
-        printf("done turning\n");
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
-        smart_stop();
+        goRight();
         // gpio_put(PICO_DEFAULT_LED_PIN, 1);
         sleep_ms(1000);
         // gpio_put(PICO_DEFAULT_LED_PIN, 0);
-        mouseUpdateDir(DRIGHT);
       }
       else if (mouseCanGoLeft() == 1 || tof_distance[2] > 150)
       {
         printf("Going left\n");
-        int target_quad = (curr_quad + 3) % 4;
-        float left_c = sin(angle * PI / 180);
-        float right_c = sin((target_quad * 90 + break_dist) * PI / 180);
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        turn_left(35);
-        sleep_ms(50);
-        if (target_quad == 0 || target_quad == 3)
-        {
-          while (left_c > right_c)
-          {
-            turn_left(30);
-            printf("angle %f, while %f > %f\n", angle, left_c, right_c);
-            left_c = sin(angle * PI / 180);
-            right_c = sin((target_quad * 90 + break_dist) * PI / 180);
-          }
-        }
-        else
-        {
-          while (left_c < right_c)
-          {
-            turn_left(30);
-            printf("angle %f, while %f > %f\n", angle, left_c, right_c);
-            left_c = sin(angle * PI / 180);
-            right_c = sin((target_quad * 90 + break_dist) * PI / 180);
-          }
-        }
-        printf("angle %f\n", angle);
-        printf("done turning\n");
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
-        smart_stop();
+        goLeft();
         // gpio_put(PICO_DEFAULT_LED_PIN, 1);
         sleep_ms(1000);
         // gpio_put(PICO_DEFAULT_LED_PIN, 0);
-        mouseUpdateDir(DLEFT);
       }
       else
       {
@@ -716,36 +729,48 @@ int explorationRun() {
         }
       }
       // zero encoders after turn
-      encoders_zero_distances();
     }
   }
 }
 
 int solvedRun(char* instructions) {
-  char test[5] = {'S', 'S', 'S', 'R', 'R'};
-  instructions = test;
-  for (int i = 0; i < sizeof(instructions) / sizeof(char); i++){
+  for (int i = 0; i < MAZE_HEIGHT * MAZE_WIDTH; i++){
     char instruction = instructions[i];
+    if (instructions[i] == 0)
+    {
+      lfprintf("solver: done solving!\n");
+      smart_stop();
+      return 1;
+    }
     state_t curr_state = mouseGetState();
     int start_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
     int curr_cell = start_cell;
-    while (start_cell != curr_cell) {
+    while (start_cell == curr_cell) {
       if (instruction == 'R') {
         // turn right
-        turn_right(30);
+        lfprintf("solver: going right!\n");
+        goRight();
       }
       if (instruction == 'L') {
+        lfprintf("solver: going left!\n");
+        goLeft();
         // turn left
       }
       if (instruction == 'B') {
+        lfprintf("solver: turning 'round!\n");
+        goRight();
+        goRight();
         // turn right twice
       }
-      goForward(30);
+      instruction = 'S';
+      goForward(35);
       updateOdom();
       curr_state = mouseGetState();
       curr_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
+      // smart_stop();
+      printf("x: %d y: %d cell: %d ori: %d \n",curr_state.x, curr_state.y, curr_cell, curr_state.ori);
+
     }
-    brake(100);
   }
 }
 
@@ -798,25 +823,27 @@ int main()
   // print_last(100);
 
   // Exploration phase
-  int explore = explorationRun();
+  // int explore = explorationRun();
 
   // We also need a run to go back to the start
 
       // Build our graph and get the best path instructions
       // we'll need some way to restart all this, since we're basically doing a new route back to start position
       // prob best to turn around first
-      state_t dest_state = mouseGetState();
-      int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
+      // state_t dest_state = mouseGetState();
+      // int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
 
-      float v[MAZE_HEIGHT][MAZE_WIDTH - 1];
-      float h[MAZE_HEIGHT - 1][MAZE_WIDTH];
-      getVWalls(v);
-      getHWalls(h);
-      buildGraph(h, v);
-      char* instructions = getPathInstructions(getShortestDistancePath(0, target));
-      // write this to robs buffer (instructions) (could also just write it while generating instructions)
-      lfprintf("Shortest path instructions for mouse\n");
-      lfprintf(instructions);
-
-      int solved = solvedRun(instructions);
+      // float v[MAZE_HEIGHT][MAZE_WIDTH - 1];
+      // float h[MAZE_HEIGHT - 1][MAZE_WIDTH];
+      // getVWalls(v);
+      // getHWalls(h);
+      // buildGraph(h, v);
+      // char* instructions = getPathInstructions(getShortestDistancePath(0, target), target);
+      // // write this to robs buffer (instructions) (could also just write it while generating instructions)
+      // lfprintf("Shortest path instructions for mouse\n");
+      // lfprintf(instructions);
+      char test[] = {'S', 'S', 'S', 'R', 'S', 0};
+      int solved = solvedRun(test);
+      smart_stop();
+  return 0;
 }

@@ -1,5 +1,6 @@
 #include "engine.h"
 #include "map.h"
+#include <string.h>
 
 float graph[HEIGHT * WIDTH][HEIGHT * WIDTH];
 
@@ -163,11 +164,17 @@ int* getShortestDistancePath(int start, int target)
     // return visited;
 }
 
-char* getPathInstructions(int* path) {
+char* getPathInstructions(int* path, int target) {
     // Then here we make the instructions for the mouse.
-    char instructions[sizeof(path)/sizeof(path[0]) - 1] = {0};
+    int size = MAZE_HEIGHT * MAZE_WIDTH;
+    
+    char instructions[size - 1];
+    memset(instructions,0,size-1);
     char orientation = ORIGHT;
-    for (int i = 0; i < sizeof(path)/sizeof(path[0]); i++) {
+    for (int i = 0; i < size; i++) {
+        if (path[i] == target) {
+            break;
+        }
         // vertical cell movement
         if (path[i + 1] - path[i] == 1) {
             if (orientation == ORIGHT){

@@ -4,8 +4,8 @@
 
 #include "stdio.h"
 
-#define MAZE_WIDTH (4)
-#define MAZE_HEIGHT (3)
+#define MAZE_WIDTH (16)
+#define MAZE_HEIGHT (16)
 #define CELL_WIDHT_MM (180)
 
 // for absoulte orientation of mouse within maze

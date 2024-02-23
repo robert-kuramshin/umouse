@@ -7,7 +7,7 @@ if (TARGET tinyusb_device)
             VL53L1X_api.cpp
             VL53L1X_calibration.cpp
             VL53L1X_platform.cpp
-            engine.c
+            engine.cpp
             )
 
     # pull in common dependencies
