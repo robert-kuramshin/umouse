@@ -8,9 +8,6 @@
 #define MAZE_HEIGHT (3)
 #define CELL_WIDHT_MM (180)
 
-float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
-float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
-
 // for absoulte orientation of mouse within maze
 enum orientation {
     ORIGHT,
@@ -49,4 +46,8 @@ int isMouseInDestinationZone();
 int mouseCanGoRight();
 
 int mouseCanGoLeft();
+
+void getVWalls(float[MAZE_HEIGHT][MAZE_WIDTH - 1]);
+
+void getHWalls(float[MAZE_HEIGHT - 1][MAZE_WIDTH]);
 #endif

@@ -1,12 +1,20 @@
 #include "map.h"
 #include "logflash.h"
 
-// float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
-// float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
+float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
+float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
 
 // assumes pos at 0,0 facing right, middle of cell
 state_t g_state = {
     DRIGHT, 0, 0, CELL_WIDHT_MM / 2}; // global micrmomouse state
+
+void getVWalls(float walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
+    walls = v_walls;
+}
+
+void getHWalls(float walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
+    walls = h_walls;
+}
 
 void printMaze()
 {

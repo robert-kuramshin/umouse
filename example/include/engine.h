@@ -13,5 +13,5 @@ void buildGraph(float[HEIGHT - 1][WIDTH], float[HEIGHT][WIDTH - 1]);
 
 int* getShortestDistancePath(int, int);
 
-char* getPathInstructions(int[]);
+char* getPathInstructions(int[MAZE_HEIGHT * MAZE_WIDTH]);
 #endif

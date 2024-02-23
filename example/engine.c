@@ -62,7 +62,6 @@ h_walls[4][5] = {
 
 void buildGraph(float h_walls[HEIGHT - 1][WIDTH], float v_walls[HEIGHT][WIDTH - 1])
 {
-    ;
     // linear in number of cells in the maze :yikes: -> so 256 cells in competition
     for (int i = 0; i < HEIGHT * WIDTH; i++) {
         graph[i][i] = 1;

@@ -354,29 +354,7 @@ void core1_entry()
 }
 
 void performInstructions(char* instructions) {
-  for (int i = 0; i < sizeof(instructions) / sizeof(char); i++){
-    char instruction = instructions[i];
-    state_t curr_state = mouseGetState();
-    start_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
-    curr_cell = start_cell;
-    while (start_cell != curr_cell) {
-      if (instruction == 'R') {
-        // turn right
-        turn_right(30);
-      }
-      if (instruction == 'L') {
-        // turn left
-      }
-      if (instruction == 'B') {
-        // turn right twice
-      }
-      goForward(30);
-      updateOdom();
-      curr_state = mouseGetState();
-      curr_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
-    }
-    brake(100);
-  }
+  
 }
 
 #define THR_CNT (1)
@@ -430,58 +408,7 @@ void smart_stop()
 //   // drop drive speed
 // }
 
-
-int main()
-{
-  stdio_init_all();
-  adc_init();
-
-  gpio_init(PICO_DEFAULT_LED_PIN);
-  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    
-  gpio_put(PICO_DEFAULT_LED_PIN, 1);
-  sleep_ms(1000);
-  gpio_put(PICO_DEFAULT_LED_PIN, 0);
-  sleep_ms(1000);
-  printf("size of log_buffer_header_t %d\n", sizeof(log_buffer_header_t));
-  printf("Board initialized!\n");
-  
-
-  // multicore_launch_core1(core1_entry);
-
-// START TESTING THE MAZE SOLVING CODE START
-//   int v_walls[4][3] = {
-//     {0, 0, -1},
-//     {1, 0, -1},
-//     {1, 0, 1},
-//     {-1, -1, -1}
-// };
-// int h_walls[3][4] = {
-//     {1, 1, 1, -1},
-//     {0, -1, -1, -1},
-//     {1, 1, 1, -1}
-// };
-//   buildGraph(h_walls, v_walls);
-//   int* path = getShortestDistancePath(0, 9);
-//   char* instructions = getPathInstructions(path);
-//   return -1;
-  // END TESTING THE MAZE SOLVING CODE END
-  int res = init_log_flash();
-  if (res != 0)
-  {
-    printf("error initing log flash\n");
-  }
-
-  // print_last(2);
-
-  multicore_launch_core1(core1_entry);
-  // while (true) {;}
-  // Init motor output right and left (both forward)
-  initMotors();
-  encoders_register_callbacks();
-
-  // print_last(100);
-
+int explorationRun() {
   lfprintf("Mouse starting....\n");
 
   // wait for TOFs to init
@@ -490,6 +417,7 @@ int main()
     sleep_ms(50);
   }
   int turn_around_counter = 0;
+  
   while (true)
   {
     updateOdom();
@@ -522,15 +450,8 @@ int main()
     {
       // I wonder if this check takes long enough for the mouse to make a mistake while moving?
       brake(100);
-      moving = false;
-      // we'll need some way to restart all this, since we're basically doing a new route back to start position
-      // prob best to turn around first
-      state_t dest_state = mouseGetState();
-      int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
-      buildGraph(h_walls, v_walls);
-      char* instructions = getPath(getShortestDistancePath(0, target));
-      // write this to robs buffer (instructions)
-      return -1;
+      // successful exploration! found the destination square;
+      return 1;
     }
     if (!moving)
     {
@@ -588,4 +509,104 @@ int main()
       encoders_zero_distances();
     }
   }
+}
+
+int solvedRun(char* instructions) {
+  char test[5] = {'S', 'S', 'S', 'R', 'R'};
+  instructions = test;
+  for (int i = 0; i < sizeof(instructions) / sizeof(char); i++){
+    char instruction = instructions[i];
+    state_t curr_state = mouseGetState();
+    int start_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
+    int curr_cell = start_cell;
+    while (start_cell != curr_cell) {
+      if (instruction == 'R') {
+        // turn right
+        turn_right(30);
+      }
+      if (instruction == 'L') {
+        // turn left
+      }
+      if (instruction == 'B') {
+        // turn right twice
+      }
+      goForward(30);
+      updateOdom();
+      curr_state = mouseGetState();
+      curr_cell = curr_state.x * MAZE_HEIGHT + curr_state.y;
+    }
+    brake(100);
+  }
+}
+
+
+int main()
+{
+  stdio_init_all();
+  adc_init();
+
+  gpio_init(PICO_DEFAULT_LED_PIN);
+  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    
+  gpio_put(PICO_DEFAULT_LED_PIN, 1);
+  sleep_ms(1000);
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  sleep_ms(1000);
+  printf("size of log_buffer_header_t %d\n", sizeof(log_buffer_header_t));
+  printf("Board initialized!\n");
+
+// START TESTING THE MAZE SOLVING CODE START
+//   int v_walls[4][3] = {
+//     {0, 0, -1},
+//     {1, 0, -1},
+//     {1, 0, 1},
+//     {-1, -1, -1}
+// };
+// int h_walls[3][4] = {
+//     {1, 1, 1, -1},
+//     {0, -1, -1, -1},
+//     {1, 1, 1, -1}
+// };
+//   buildGraph(h_walls, v_walls);
+//   int* path = getShortestDistancePath(0, 9);
+//   char* instructions = getPathInstructions(path);
+//   return -1;
+  // END TESTING THE MAZE SOLVING CODE END
+  int res = init_log_flash();
+  if (res != 0)
+  {
+    printf("error initing log flash\n");
+  }
+
+  // print_last(2);
+
+  multicore_launch_core1(core1_entry);
+  // Init motor output right and left (both forward)
+  initMotors();
+  encoders_register_callbacks();
+
+  // print_last(100);
+
+  // Exploration phase
+  int explore = explorationRun();
+
+  // We also need a run to go back to the start
+
+      // Build our graph and get the best path instructions
+      // we'll need some way to restart all this, since we're basically doing a new route back to start position
+      // prob best to turn around first
+      state_t dest_state = mouseGetState();
+      int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
+
+      float v[MAZE_HEIGHT][MAZE_WIDTH - 1];
+      float h[MAZE_HEIGHT - 1][MAZE_WIDTH];
+      getVWalls(v);
+      getHWalls(h);
+      buildGraph(h, v);
+      char* instructions = getPathInstructions(getShortestDistancePath(0, target));
+      // write this to robs buffer (instructions) (could also just write it while generating instructions)
+      lfprintf("Shortest path instructions for mouse\n");
+      lfprintf(instructions);
+
+      int solved = solvedRun(instructions);
 }
