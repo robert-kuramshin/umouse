@@ -31,7 +31,6 @@
 
 #define PICO_DEFAULT_LED_PIN (25)
 
-
 #define RIGHT_MOTOR_A_PIN (15)
 #define RIGHT_MOTOR_B_PIN (14)
 
@@ -54,17 +53,15 @@
 
 #define PI (3.14159)
 
-
-
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
 
 volatile uint32_t counter = 0;
 
 volatile bool sensors_ready = false;
 
-volatile uint16_t tof_distance[3] = {151, 50, 50}; // make sure not to do anything till we get a first reading
+volatile uint16_t tof_distance[3] = { 151, 50, 50 };  // make sure not to do anything till we get a first reading
 
-bool moving = true;
+bool moving = false;
 // motor slices and f/r channels
 uint rslice;
 uint rfchan;
@@ -72,7 +69,7 @@ uint rrchan;
 uint lslice;
 uint lfchan;
 uint lrchan;
-int break_dist = 20;
+int break_dist = 12;
 void smart_stop();
 void moveLeftMotor(int duty, int direction);
 void moveRightMotor(int duty, int direction);
@@ -138,8 +135,22 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
   int duty = 35;
   // This is the condition where you are stopped in a straight route.
-  if (front_dist < 85)
+  if (front_dist < 200)
   {
+    if (!moving)
+    {
+      goForward(35);
+    }
+    else
+    {
+      goForward(30);
+    }
+
+    while (tof_distance[0] > 70)
+    {
+      sleep_us(1);
+    }
+
     smart_stop();
     printMaze();
 
@@ -167,29 +178,24 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
   else
   {
     moving = true;
-    if (left_dist < 40)
+    int left_duty = duty;
+    int right_duty = duty;
+    if (left_dist < 70)
     {
       // veer right;
       // brake(100);
       // sleep_ms(1000);
-      while (tof_distance[2] < 40)
-      {
-        moveLeftMotor(duty, 1);
-        moveRightMotor(duty - 10, 1);
-      }
+      right_duty = right_duty - (70 - left_dist) / 8;
     }
-    else if (right_dist < 40)
+    if (right_dist < 70)
     {
       // veer left
       // brake(100);
       // sleep_ms(1000);
-      while (tof_distance[1] < 40)
-      {
-        moveRightMotor(duty, 1);
-        moveLeftMotor(duty - 10, 1);
-      }
+      left_duty = left_duty - (70 - right_dist) / 12;
     }
-    goForward(duty);
+    moveRightMotor(right_duty, 1);
+    moveLeftMotor(left_duty, 1);
   }
 }
 
@@ -310,22 +316,21 @@ void turn_right(int duty)
 
 void init_mpu()
 {
-
-    uint8_t data[2] = {CONFIG_REG_A, 0x70};
-    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
-    data[0] = CONFIG_REG_B;
-    data[1] = 0x20;
-    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
-    data[0] = MODE_REG;
-    data[1] = 0x00;
-    i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+  uint8_t data[2] = { CONFIG_REG_A, 0x70 };
+  i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+  data[0] = CONFIG_REG_B;
+  data[1] = 0x20;
+  i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
+  data[0] = MODE_REG;
+  data[1] = 0x00;
+  i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
 }
 
-
-static void read_registers(uint8_t reg, uint8_t *buf, uint16_t len) {
-    reg |= 1;
-    i2c_write_blocking(i2c0, HMC5883L_ADDR, &reg, 1, false);
-    i2c_read_blocking(i2c0, HMC5883L_ADDR, buf, len, false);
+static void read_registers(uint8_t reg, uint8_t* buf, uint16_t len)
+{
+  reg |= 1;
+  i2c_write_blocking(i2c0, HMC5883L_ADDR, &reg, 1, false);
+  i2c_read_blocking(i2c0, HMC5883L_ADDR, buf, len, false);
 }
 
 volatile float angle = 0;
@@ -336,9 +341,9 @@ void core1_entry()
 {
   flash_safe_execute_core_init();
   // init tof sensor
-  VL53L1X_Result_t results[3] = {0};
-  VL53L1X_Status_t status[3] = {0};
-  
+  VL53L1X_Result_t results[3] = { 0 };
+  VL53L1X_Status_t status[3] = { 0 };
+
   i2c_init(i2c0, 100000);
 
   gpio_set_function(16, GPIO_FUNC_I2C);
@@ -346,16 +351,16 @@ void core1_entry()
 
   gpio_pull_up(16);
   gpio_pull_up(17);
-  
+
   // mpu.calibrateAccelGyro();
 
   // mpu.setMagBias(-507.45,81.90,122.26);
   // mpu.setMagScale(0.92, 1.07, 1.02 );
 
-// AK8963 mag biases (mG)
-// -512.79, 23.15, 148.09
-// AK8963 mag scale (mG)
-// 0.91, 1.05, 1.06
+  // AK8963 mag biases (mG)
+  // -512.79, 23.15, 148.09
+  // AK8963 mag scale (mG)
+  // 0.91, 1.05, 1.06
 
   // mpu.setMagBias(-510.12,52.525, 135.175);
   // mpu.setMagScale(0.915, 1.06, 1.04 );
@@ -371,7 +376,7 @@ void core1_entry()
   gpio_init(28);
   gpio_set_dir(28, GPIO_OUT);
   gpio_put(28, 0);
-  uint16_t addrs[3] = {I2C_DEV_ADDR_2, I2C_DEV_ADDR_1, I2C_DEV_ADDR_0};
+  uint16_t addrs[3] = { I2C_DEV_ADDR_2, I2C_DEV_ADDR_1, I2C_DEV_ADDR_0 };
   status[0] = tof_init(22, I2C_DEV_ADDR_2);
   printf("TOF 0 status %d\n", status[0]);
   status[1] = tof_init(18, I2C_DEV_ADDR_1);
@@ -380,70 +385,75 @@ void core1_entry()
   printf("TOF 2 status %d\n", status[2]);
   printf("Done configuring sensor!\n");
   sensors_ready = true;
-  bool first_range[3] = {true, true, true};
-  float x,y,z;
-  float xl = 0,yl = 0,zl = 0;
-  uint8_t rawdata[6] = {0};
+  bool first_range[3] = { true, true, true };
+  float x, y, z;
+  float xl = 0, yl = 0, zl = 0;
+  uint8_t rawdata[6] = { 0 };
 
   // this polling loop runs forever in thread 2
   while (true)
   {
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 4; i++)
     {
-      // try reading mpu (nonblocking)
-      read_registers(DATA_REG, rawdata, 6);
-      x = (rawdata[0] << 8) | rawdata[1];
-      z = (rawdata[2] << 8) | rawdata[3];
-      y = (rawdata[4] << 8) | rawdata[5];
-      if (x > 32767)
+      if (i == 3)
+      {
+        // try reading mpu (nonblocking)
+        read_registers(DATA_REG, rawdata, 6);
+        x = (rawdata[0] << 8) | rawdata[1];
+        z = (rawdata[2] << 8) | rawdata[3];
+        y = (rawdata[4] << 8) | rawdata[5];
+        if (x > 32767)
           x -= 65536;
-      if (y > 32767)
+        if (y > 32767)
           y -= 65536;
-      if (z > 32767)
+        if (z > 32767)
           z -= 65536;
-  
-      x *= LSB_TO_UT;
-      y *= LSB_TO_UT;
-      z *= LSB_TO_UT;
 
-      // apply calibration
-      x -= -28.027523;
-      y -= -8.944954;
-      z -= 11.972478;
+        x *= LSB_TO_UT;
+        y *= LSB_TO_UT;
+        z *= LSB_TO_UT;
 
-      // smooth a bit
-      // if (xl != 0)
-      // {
-      //   x = (x + xl * 4) / 5;
-      //   y = (y + yl * 4) / 5;
-      //   z = (z + zl * 4) / 5;
-      //   xl = x;
-      //   yl = y;
-      //   zl = z;
-      // }
+        // apply calibration
+        x -= -28.027523;
+        y -= -8.944954;
+        z -= 11.972478;
 
-      float k = atan2f(x, y);
+        // smooth a bit
+        // if (xl != 0)
+        // {
+        //   x = (x + xl * 4) / 5;
+        //   y = (y + yl * 4) / 5;
+        //   z = (z + zl * 4) / 5;
+        //   xl = x;
+        //   yl = y;
+        //   zl = z;
+        // }
 
-      k = k * 180 / 3.14159265;
-      if (k < 0)
-      {
-        k = k + 360;
+        float k = atan2f(x, y);
+
+        k = k * 180 / 3.14159265;
+        if (k < 0)
+        {
+          k = k + 360;
+        }
+        if (angle_offset == 0)
+        {
+          angle_offset = 360 - (k);
+          printf("Angle offset %f, angle %f\n", angle_offset, k);
+        }
+        // mutex_enter_blocking(&m);
+        angle = fmod(k + angle_offset, 360);
+        // printf("core 1: angle %f, k: %f of: %f\n", angle, k, angle_offset);
+        // mutex_exit(&m);
+
+        continue;
       }
-      if (angle_offset == 0)
-      {
-        angle_offset = 360-(k);
-        printf("Angle offset %f, angle %f\n", angle_offset, k);
-
-      }
-      // mutex_enter_blocking(&m);
-      angle = fmod(k + angle_offset, 360);
-      printf("core 1: angle %f, k: %f of: %f\n", angle, k, angle_offset);
-          // mutex_exit(&m);
-
+      //
       // Wait until we have new data (front distance)
       uint8_t dataReady;
       status[i] = VL53L1X_CheckForDataReady(addrs[i], &dataReady);
-      if (dataReady == 0) {
+      if (dataReady == 0)
+      {
         // skip sensor if not ready
         continue;
       }
@@ -459,7 +469,7 @@ void core1_entry()
       status[i] += VL53L1X_ClearInterrupt(addrs[i]);
       // sleep_ms(1000);
       if (first_range[i])
-      { // Clear twice on first measurement
+      {  // Clear twice on first measurement
         status[i] += VL53L1X_ClearInterrupt(addrs[i]);
         first_range[i] = false;
       }
@@ -483,7 +493,7 @@ void smart_stop()
   uint32_t last_left = left_count;
   uint8_t left_orig_dir = left_moving_forward;
   uint8_t right_orig_dir = right_moving_forward;
-  
+
   moveLeftMotor(100, left_moving_forward ? -1 : 1);
   moveRightMotor(100, right_moving_forward ? -1 : 1);
 
@@ -498,8 +508,10 @@ void smart_stop()
       printf("hardbreak left %d \n", left_count - last_left);
       // apply full duty in opposite direction
       moveLeftMotor(100, left_orig_dir ? -1 : 1);
-    } else {
-      moveLeftMotor(100,0);
+    }
+    else
+    {
+      moveLeftMotor(100, 0);
     }
     if ((right_orig_dir > 0) == (right_moving_forward > 0))
     {
@@ -508,8 +520,10 @@ void smart_stop()
       printf("hardbreak right %d\n", right_count - last_right);
       // apply full duty in opposite direction
       moveRightMotor(100, right_orig_dir ? -1 : 1);
-    } else {
-      moveRightMotor(100,0);
+    }
+    else
+    {
+      moveRightMotor(100, 0);
     }
   }
 }
@@ -527,7 +541,6 @@ int explorationRun() {
   sleep_ms(1000);
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
   sleep_ms(1000);
-
 
   // wait for TOFs and gyro to init
   while (!sensors_ready || angle == 0)
@@ -575,7 +588,7 @@ int explorationRun() {
     {
       sleep_ms(1000);
       printf("We have stopped moving!");
-      //zero encoders before move
+      // zero encoders before move
       encoders_zero_distances();
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
@@ -583,9 +596,12 @@ int explorationRun() {
       int curr_quad;
       int low_quad = (int)(angle / 90);
       int high_quad = low_quad + 1;
-      if (angle - 90 * low_quad > 90 * high_quad - angle) {
+      if (angle - 90 * low_quad > 90 * high_quad - angle)
+      {
         curr_quad = high_quad;
-      } else {
+      }
+      else
+      {
         curr_quad = low_quad;
       }
 
@@ -593,41 +609,47 @@ int explorationRun() {
       {
         int count = 0;
         printf("Going right\n");
-        printf("angle %f\n",angle);
+        printf("angle %f\n", angle);
         // int curr_quad = (int) (angle / 90);
 
         // mutex_enter_blocking(&m);
-        int target_quad = (curr_quad %4) + 1;
+        int target_quad = (curr_quad % 4) + 1;
         float left_c = sin(angle * PI / 180);
         float right_c = sin((target_quad * 90 - break_dist) * PI / 180);
         // mutex_exit(&m);
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        if (target_quad == 4 || target_quad == 1) {
-          while (left_c < right_c) {
+        turn_right(35);
+        sleep_ms(50);
+        if (target_quad == 4 || target_quad == 1)
+        {
+          while (left_c < right_c)
+          {
             // mutex_enter_blocking(&m);
-            printf("angle %f, while %f < %f\n",angle, left_c, right_c);
+            printf("angle %f, while %f < %f\n", angle, left_c, right_c);
             left_c = sin(angle * PI / 180);
             right_c = sin((target_quad * 90 - break_dist) * PI / 180);
             // mutex_exit(&m);
-            turn_right(35);
+            turn_right(30);
             // sleep_ms(1);
           }
-          printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+          printf("angle %f, while %f > %f\n", angle, left_c, right_c);
         }
-        else {
-          while (left_c > right_c) {
+        else
+        {
+          while (left_c > right_c)
+          {
             // mutex_enter_blocking(&m);
-            printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+            printf("angle %f, while %f > %f\n", angle, left_c, right_c);
             left_c = sin(angle * PI / 180);
             right_c = sin((target_quad * 90 - break_dist) * PI / 180);
             // mutex_exit(&m);
-            turn_right(35);
+            turn_right(30);
             // sleep_ms(1);
           }
-          printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+          printf("angle %f, while %f > %f\n", angle, left_c, right_c);
         }
         printf("count %d\n", count);
-        printf("angle %f\n",angle);
+        printf("angle %f\n", angle);
         printf("done turning\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
         smart_stop();
@@ -635,7 +657,6 @@ int explorationRun() {
         sleep_ms(1000);
         // gpio_put(PICO_DEFAULT_LED_PIN, 0);
         mouseUpdateDir(DRIGHT);
-        moving = true;
       }
       else if (mouseCanGoLeft() == 1 || tof_distance[2] > 150)
       {
@@ -644,25 +665,29 @@ int explorationRun() {
         float left_c = sin(angle * PI / 180);
         float right_c = sin((target_quad * 90 + break_dist) * PI / 180);
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        turn_left(35);
+        sleep_ms(50);
         if (target_quad == 0 || target_quad == 3)
         {
-          while(left_c > right_c)
+          while (left_c > right_c)
           {
-            turn_left(35);
-            printf("angle %f, while %f > %f\n",angle, left_c, right_c);
-            left_c = sin(angle * PI / 180);
-            right_c = sin((target_quad * 90 + break_dist) * PI / 180);
-          }
-        }else {
-          while (left_c < right_c)
-          {
-            turn_left(35);
-            printf("angle %f, while %f > %f\n",angle, left_c, right_c);
+            turn_left(30);
+            printf("angle %f, while %f > %f\n", angle, left_c, right_c);
             left_c = sin(angle * PI / 180);
             right_c = sin((target_quad * 90 + break_dist) * PI / 180);
           }
         }
-        printf("angle %f\n",angle);
+        else
+        {
+          while (left_c < right_c)
+          {
+            turn_left(30);
+            printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+            left_c = sin(angle * PI / 180);
+            right_c = sin((target_quad * 90 + break_dist) * PI / 180);
+          }
+        }
+        printf("angle %f\n", angle);
         printf("done turning\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
         smart_stop();
@@ -670,8 +695,9 @@ int explorationRun() {
         sleep_ms(1000);
         // gpio_put(PICO_DEFAULT_LED_PIN, 0);
         mouseUpdateDir(DLEFT);
-        moving = true;
-      } else {
+      }
+      else
+      {
         if (turn_around_counter > 10)
         {
           turn_around_counter = 0;
@@ -683,8 +709,9 @@ int explorationRun() {
           smart_stop();
           sleep_ms(1000);
           mouseUpdateDir(DBACKWARDS);
-          moving = true;
-        } else {
+        }
+        else
+        {
           turn_around_counter++;
         }
       }
