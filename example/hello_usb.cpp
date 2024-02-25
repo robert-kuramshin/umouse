@@ -53,6 +53,16 @@
 
 #define PI (3.14159)
 
+#define RED_PIN (8)
+#define YELLOW_PIN (7)
+#define GREEN_PIN (6)
+
+#define BUTTON_PIN (9)
+
+#define COORD_TO_NUM(x,y) ((x) * MAZE_HEIGHT + (y))
+
+int target_states[1] = {COORD_TO_NUM(2,0)};
+
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
 
 volatile uint32_t counter = 0;
@@ -75,6 +85,36 @@ void moveLeftMotor(int duty, int direction);
 void moveRightMotor(int duty, int direction);
 void goForward(int duty);
 
+void initLEDS()
+{
+  gpio_init(GREEN_PIN);
+  gpio_init(RED_PIN);
+  gpio_init(YELLOW_PIN);
+
+  gpio_set_dir(GREEN_PIN, GPIO_OUT);
+  gpio_set_dir(RED_PIN, GPIO_OUT);
+  gpio_set_dir(YELLOW_PIN, GPIO_OUT);
+}
+void setGreenStatus()
+{
+  gpio_put(GREEN_PIN,1);
+  gpio_put(RED_PIN,0);
+  gpio_put(YELLOW_PIN,0);
+}
+
+void setRedStatus()
+{
+  gpio_put(GREEN_PIN,0);
+  gpio_put(RED_PIN,1);
+  gpio_put(YELLOW_PIN,0);
+}
+
+void setYellowStatus()
+{
+  gpio_put(GREEN_PIN,0);
+  gpio_put(RED_PIN,0);
+  gpio_put(YELLOW_PIN,1);
+}
 // void gpio_callback_a(uint gpio, uint32_t events) {
 //     printf("event A\n");
 // }
@@ -124,11 +164,18 @@ VL53L1X_Status_t tof_init(int xshut, uint16_t addr)
   return status;
 }
 
+float last_odom = 0;
+
+void zeroOdom()
+{
+  last_odom = 0;
+  encoders_zero_distances();
+}
 void updateOdom()
 {
   float dist = encoders_distance_traveled();
-  mouseUpdateOdom(dist);
-  encoders_zero_distances();
+  mouseUpdateOdom(dist - last_odom);
+  last_odom = dist;
 }
 
 void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
@@ -505,7 +552,7 @@ void smart_stop()
     {
       // if count change > threshold and direction hasn't changed
       run = true;
-      printf("hardbreak left %d \n", left_count - last_left);
+      // printf("hardbreak left %d \n", left_count - last_left);
       // apply full duty in opposite direction
       moveLeftMotor(100, left_orig_dir ? -1 : 1);
     }
@@ -517,7 +564,7 @@ void smart_stop()
     {
       // if count change > threshold and direction hasn't changed
       run = true;
-      printf("hardbreak right %d\n", right_count - last_right);
+      // printf("hardbreak right %d\n", right_count - last_right);
       // apply full duty in opposite direction
       moveRightMotor(100, right_orig_dir ? -1 : 1);
     }
@@ -559,7 +606,7 @@ void goLeft()
     while (left_c > right_c)
     {
       turn_left(30);
-      printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+      // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
     }
@@ -569,7 +616,7 @@ void goLeft()
     while (left_c < right_c)
     {
       turn_left(30);
-      printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+      // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
     }
@@ -579,7 +626,9 @@ void goLeft()
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
   smart_stop();
   mouseUpdateDir(DLEFT);
-  encoders_zero_distances();
+
+  // zero without updating with data from turn
+  zeroOdom();
 }
 
 void goRight() {
@@ -629,7 +678,9 @@ void goRight() {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
   smart_stop();
   mouseUpdateDir(DRIGHT); 
-  encoders_zero_distances();
+
+  // zero without updating odom with data from turn
+  zeroOdom();
 }
 
 int explorationRun() {
@@ -649,6 +700,23 @@ int explorationRun() {
   while (true)
   {
     updateOdom();
+
+    state_t ms = mouseGetState();
+    for (int i = 0; i< sizeof(target_states)/sizeof(target_states[0]); i++)
+    {
+      if (COORD_TO_NUM(ms.x,ms.y) == target_states[i])
+      {
+        smart_stop();
+        int8_t v[MAZE_HEIGHT][MAZE_WIDTH - 1];
+        int8_t h[MAZE_HEIGHT - 1][MAZE_WIDTH];
+        getVWalls(v);
+        getHWalls(h);
+        write_walls(h,v);
+        update_target(target_states[i]);
+        setGreenStatus();
+        return 0;
+      }
+    }
     // printMaze();
     uint16_t right_dist = tof_distance[1];
     uint16_t left_dist = tof_distance[2];
@@ -685,8 +753,7 @@ int explorationRun() {
     {
       sleep_ms(1000);
       printf("We have stopped moving!");
-      // zero encoders before move
-      encoders_zero_distances();
+      updateOdom();
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
 
@@ -780,6 +847,14 @@ int main()
   stdio_init_all();
   adc_init();
 
+  initLEDS();
+
+  gpio_init(BUTTON_PIN);
+  gpio_set_dir(BUTTON_PIN, GPIO_IN);
+  gpio_pull_up(BUTTON_PIN);
+  sleep_ms(1);
+  bool solved = gpio_get(BUTTON_PIN) == 0;
+
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     
@@ -822,28 +897,44 @@ int main()
 
   // print_last(100);
 
-  // Exploration phase
-  // int explore = explorationRun();
+  if(!solved)
+  {
+    setYellowStatus();
+    // Exploration phase
+    explorationRun();
+  } else {
+    setGreenStatus();
+    // We also need a run to go back to the start
 
-  // We also need a run to go back to the start
+    // Build our graph and get the best path instructions
+    // we'll need some way to restart all this, since we're basically doing a new route back to start position
+    // prob best to turn around first
+    // state_t dest_state = mouseGetState();
+    // int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
 
-      // Build our graph and get the best path instructions
-      // we'll need some way to restart all this, since we're basically doing a new route back to start position
-      // prob best to turn around first
-      // state_t dest_state = mouseGetState();
-      // int target = dest_state.x * MAZE_HEIGHT + dest_state.y;
+    int8_t v[MAZE_HEIGHT][MAZE_WIDTH - 1];
+    int8_t h[MAZE_HEIGHT - 1][MAZE_WIDTH];
+    int target = get_target();
+    int ret = read_walls(h,v);
+    target = 32;
+    if (ret <0 || target == -1)
+    {
+      setRedStatus();
+      return 0;
+    }
 
-      // float v[MAZE_HEIGHT][MAZE_WIDTH - 1];
-      // float h[MAZE_HEIGHT - 1][MAZE_WIDTH];
-      // getVWalls(v);
-      // getHWalls(h);
-      // buildGraph(h, v);
-      // char* instructions = getPathInstructions(getShortestDistancePath(0, target), target);
-      // // write this to robs buffer (instructions) (could also just write it while generating instructions)
-      // lfprintf("Shortest path instructions for mouse\n");
-      // lfprintf(instructions);
-      char test[] = {'S', 'S', 'S', 'R', 'S', 0};
-      int solved = solvedRun(test);
-      smart_stop();
+
+    setVWalls(v);
+    setHWalls(h);
+    printMaze();
+    printf("Target is %d\n", target);
+    buildGraph(h, v);
+    char* instructions = getPathInstructions(getShortestDistancePath(0, target), target);
+    // // write this to robs buffer (instructions) (could also just write it while generating instructions)
+    lfprintf("Shortest path instructions for mouse\n");
+    lfprintf(instructions);
+    solvedRun(instructions);
+    smart_stop();
+  }
   return 0;
 }

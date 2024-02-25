@@ -4,6 +4,8 @@
 
 #include "stdio.h"
 
+#include "string.h"
+
 #define MAZE_WIDTH (16)
 #define MAZE_HEIGHT (16)
 #define CELL_WIDHT_MM (180)
@@ -35,7 +37,7 @@ void printMaze();
 
 state_t mouseGetState();
 
-void mouseUpdateWall(float confidence, int dir);
+void mouseUpdateWall(int8_t confidence, int dir);
 
 void mouseUpdateDir(int dir);
 
@@ -47,7 +49,11 @@ int mouseCanGoRight();
 
 int mouseCanGoLeft();
 
-void getVWalls(float[MAZE_HEIGHT][MAZE_WIDTH - 1]);
+void getVWalls(int8_t[MAZE_HEIGHT][MAZE_WIDTH - 1]);
 
-void getHWalls(float[MAZE_HEIGHT - 1][MAZE_WIDTH]);
+void getHWalls(int8_t[MAZE_HEIGHT - 1][MAZE_WIDTH]);
+
+void setVWalls(int8_t[MAZE_HEIGHT][MAZE_WIDTH - 1]);
+
+void setHWalls(int8_t[MAZE_HEIGHT - 1][MAZE_WIDTH]);
 #endif

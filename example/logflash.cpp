@@ -3,8 +3,11 @@
 #include "hardware/regs/addressmap.h"
 #include "hardware/sync.h"
 
+#include <string.h>
 
 #include "pico/flash.h"
+
+#include "map.h"
 
 
 page_t *page_a;
@@ -14,14 +17,69 @@ page_t *active_page;
 log_buffer_header_t g_header;
 
 const char *flash_header_contents = (const char *) (XIP_BASE + FLASH_LOG_HEADER_OFFSET);
+const char *flash_wall_contents = (const char *) (XIP_BASE + FLASH_WALL_START_OFFSET);
 const char *flash_target_contents = (const char *) (XIP_BASE + FLASH_LOG_START_OFFSET);
 
-void update_header()
+
+void update_header(void *)
 {
     // uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(FLASH_LOG_HEADER_OFFSET, FLASH_SECTOR_SIZE);
     flash_range_program(FLASH_LOG_HEADER_OFFSET, (const uint8_t *) &g_header, FLASH_PAGE_SIZE);
     // restore_interrupts (ints);
+}
+
+void update_target(int target)
+{
+    g_header.target = target;
+    flash_safe_execute(update_header, NULL, 1000);
+}
+
+int get_target()
+{
+    return g_header.target;
+}
+
+void write_hwalls_unsafe(int8_t hw[MAZE_HEIGHT - 1][MAZE_WIDTH])
+{
+    flash_range_erase(FLASH_WALL_START_OFFSET, FLASH_SECTOR_SIZE);
+    h_wall_buffer h;
+    h.magic = WALLS_MAGIC;
+    memcpy(h.h_walls,hw, 15*16);
+    flash_range_program(FLASH_WALL_START_OFFSET, (const uint8_t *) &h, FLASH_PAGE_SIZE);
+}
+
+void write_vwalls_unsafe(int8_t vw[MAZE_HEIGHT][MAZE_WIDTH - 1])
+{
+    v_wall_buffer v;
+    v.magic = WALLS_MAGIC;
+    memcpy(v.v_walls,vw, 15*16);
+    flash_range_program(FLASH_WALL_START_OFFSET + FLASH_PAGE_SIZE, (const uint8_t *) &v, FLASH_PAGE_SIZE);
+}
+
+void write_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1])
+{
+    flash_safe_execute((void (*)(void *))write_hwalls_unsafe, (void *)h_walls, 1000);
+    flash_safe_execute((void (*)(void *))write_vwalls_unsafe, (void *)v_walls, 1000);
+}
+
+int read_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1])
+{
+    h_wall_buffer_t *h = (h_wall_buffer_t *) (flash_wall_contents);
+    if (h->magic != WALLS_MAGIC)
+    {
+        return -1;
+    }
+    v_wall_buffer_t *v = (v_wall_buffer_t *) (flash_wall_contents + FLASH_PAGE_SIZE);
+    if (v->magic != WALLS_MAGIC)
+    {
+        return -2;
+    }
+    memcpy(h_walls, h->h_walls, (MAZE_HEIGHT - 1) * MAZE_WIDTH);
+    memcpy(v_walls, v->v_walls, (MAZE_HEIGHT - 1) * MAZE_WIDTH);
+
+    return 0;
+
 }
 
 void write_flash(void *)
@@ -35,7 +93,7 @@ void write_flash(void *)
     // }
     flash_range_program(flash_write_addr, (const uint8_t *)active_page, FLASH_PAGE_SIZE);
     g_header.write_page_num =  (g_header.write_page_num + 1) % NUM_PAGES;
-    update_header();
+    update_header(NULL);
 }
 
 // write to in memory page buffer
@@ -56,7 +114,7 @@ void lfprintf(const char *format, ...)
     // try to write to active buffer
     size_t used = active_page->size;
     char* write_addr = (char *) &(active_page->data) + used;
-    size_t remaining = PAGE_DATA_SIZE - used;
+    int remaining = PAGE_DATA_SIZE - used;
 #ifdef LOG_H_DEBUG
     printf("page num: %ld\n",g_header.write_page_num);
     printf("used: %d\n",used);
@@ -67,8 +125,8 @@ void lfprintf(const char *format, ...)
     if (res > remaining)
     {
         *write_addr = '\0'; // cut out the portion of the message written
-        printf("writing to address: %d, 0x%lx\n",g_header.write_page_num, FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE);
 #ifdef LOG_H_DEBUG
+        printf("writing to address: %ld, 0x%lx\n",g_header.write_page_num, FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE);
 #endif
         flash_safe_execute(write_flash,NULL, 1000);
 #ifdef LOG_H_DEBUG
@@ -86,7 +144,7 @@ void print_all()
 {
     const page_t *page;
     // take first page in front of the write pointer (tail of circ buffer)
-    int page_num = (g_header.write_page_num + 1) % NUM_PAGES;
+    uint32_t page_num = (g_header.write_page_num + 1) % NUM_PAGES;
     while (page_num != g_header.write_page_num)
     {
 #ifdef LOG_H_DEBUG
@@ -105,7 +163,7 @@ void print_all()
     }
 }
 
-void print_last(int num)
+void print_last(uint32_t num)
 {
     if (num >= NUM_PAGES)
     {
@@ -114,7 +172,7 @@ void print_last(int num)
     }
     const page_t *page;
     // take first page in front of the write pointer (tail of circ buffer)
-    int page_num = (g_header.write_page_num + NUM_PAGES - num) % NUM_PAGES;
+    uint32_t page_num = (g_header.write_page_num + NUM_PAGES - num) % NUM_PAGES;
     while (page_num != g_header.write_page_num)
     {
 #ifdef LOG_H_DEBUG
@@ -152,7 +210,7 @@ int init_log_flash()
         printf("Initializing flash header\n");
         g_header.magic = LOG_BUFFER_MAGIC;
         g_header.write_page_num = 0;
-        update_header();
+        flash_safe_execute(update_header, NULL, 1000);
         
     }
 #ifdef LOG_H_DEBUG
@@ -169,4 +227,5 @@ void erase_all() {
     restore_interrupts (ints);
     g_header.magic = LOG_BUFFER_MAGIC;
     g_header.write_page_num = 0;
+    g_header.target = -1;
 }

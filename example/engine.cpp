@@ -2,7 +2,7 @@
 #include "map.h"
 #include <string.h>
 
-float graph[HEIGHT * WIDTH][HEIGHT * WIDTH];
+int8_t graph[HEIGHT * WIDTH][HEIGHT * WIDTH];
 
 void printGraph()
 {
@@ -61,7 +61,7 @@ h_walls[4][5] = {
 
 */
 
-void buildGraph(float h_walls[HEIGHT - 1][WIDTH], float v_walls[HEIGHT][WIDTH - 1])
+void buildGraph(int8_t h_walls[HEIGHT - 1][WIDTH], int8_t v_walls[HEIGHT][WIDTH - 1])
 {
     // linear in number of cells in the maze :yikes: -> so 256 cells in competition
     for (int i = 0; i < HEIGHT * WIDTH; i++) {
@@ -85,9 +85,9 @@ void buildGraph(float h_walls[HEIGHT - 1][WIDTH], float v_walls[HEIGHT][WIDTH - 
     }
 }
 
-int dfs(float graph[HEIGHT * WIDTH][HEIGHT * WIDTH], int visited[HEIGHT * WIDTH], int path[HEIGHT * WIDTH], int curr_i, int start, int target) {
+int dfs(int8_t graph[HEIGHT * WIDTH][HEIGHT * WIDTH], int visited[HEIGHT * WIDTH], int path[HEIGHT * WIDTH], int curr_i, int start, int target) {
     visited[start] = 1;
-    printf("Node: %d\n", start);
+    printf("Node: %d %d\n",start/16, start%16);
     for (int i =0; i < HEIGHT * WIDTH; i++) {
         if (graph[start][i] == 1 && visited[i] == -1) {
             if (i != target) {
@@ -111,7 +111,7 @@ int dfs(float graph[HEIGHT * WIDTH][HEIGHT * WIDTH], int visited[HEIGHT * WIDTH]
     return 0;
 }
 
-
+int path[MAZE_HEIGHT * MAZE_WIDTH] = {0};
 int* getShortestDistancePath(int start, int target)
 {
     // returns a path from start to finish.
@@ -131,7 +131,6 @@ int* getShortestDistancePath(int start, int target)
     int k = 1;
     visited[start] = 1;
     int curr;
-    int path[MAZE_HEIGHT * MAZE_WIDTH] = {0};
     printf("begin!\n");
     int success = dfs(graph, visited, path, 1, start, target);
     return path;
@@ -164,12 +163,12 @@ int* getShortestDistancePath(int start, int target)
     // return visited;
 }
 
+char instructions[MAZE_HEIGHT * MAZE_WIDTH - 1];
 char* getPathInstructions(int* path, int target) {
     // Then here we make the instructions for the mouse.
     int size = MAZE_HEIGHT * MAZE_WIDTH;
     
-    char instructions[size - 1];
-    memset(instructions,0,size-1);
+    memset(instructions,0,size);
     char orientation = ORIGHT;
     for (int i = 0; i < size; i++) {
         if (path[i] == target) {

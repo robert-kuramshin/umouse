@@ -9,7 +9,7 @@
 
 void printGraph();
 
-void buildGraph(float[HEIGHT - 1][WIDTH], float[HEIGHT][WIDTH - 1]);
+void buildGraph(int8_t[HEIGHT - 1][WIDTH], int8_t[HEIGHT][WIDTH - 1]);
 
 int* getShortestDistancePath(int, int);
 

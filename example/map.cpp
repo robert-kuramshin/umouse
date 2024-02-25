@@ -1,19 +1,31 @@
 #include "map.h"
 #include "logflash.h"
 
-float h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
-float v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
+#define min(a,b) (((a)<(b))?(a):(b))
+#define max(a,b) (((a)>(b))?(a):(b))
+
+
+int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
+int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
 
 // assumes pos at 0,0 facing right, middle of cell
 state_t g_state = {
     DRIGHT, 0, 0, CELL_WIDHT_MM / 2}; // global micrmomouse state
 
-void getVWalls(float walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
+void getVWalls(int8_t walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
     walls = v_walls;
 }
 
-void getHWalls(float walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
+void getHWalls(int8_t walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
     walls = h_walls;
+}
+
+void setVWalls(int8_t walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
+    memcpy(v_walls, walls, 15*16);
+}
+
+void setHWalls(int8_t walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
+    memcpy(h_walls, walls, 15*16);
 }
 
 void printMaze()
@@ -30,7 +42,7 @@ void printMaze()
             {
                 lfprintf("X");
             }
-            lfprintf(" %2.0f", v_walls[x][y]);
+            lfprintf(" %d", v_walls[x][y]);
         }
         lfprintf("\n");
         if (x == MAZE_HEIGHT - 1)
@@ -141,29 +153,39 @@ int mouseCanGoLeft()
     }
 }
 
-// dir -> DLEFT, DRIGHT, Forawrd. Confidence -> [0,1]
-void mouseUpdateWall(float confidence, int dir)
+void add_bound_h(int x, int y, int8_t confidence)
 {
-    if (confidence > 0)
-    {
-        // lfprintf("voting wall to the ");
-    }
-    else
-    {
-        // lfprintf("voting gap to the ");
-    }
-    if (dir == DRIGHT)
-    {
-        // lfprintf("right\n");
-    }
-    else if (dir == DLEFT)
-    {
-        // lfprintf("left\n");
-    }
-    else if (dir == DFORWARD)
-    {
-        // lfprintf("ahead\n");
-    }
+    h_walls[x][y] = max(min(h_walls[x][y] + confidence, INT8_MAX), INT8_MIN);
+}
+
+void add_bound_v(int x, int y, int8_t confidence)
+{
+    v_walls[x][y] = max(min(v_walls[x][y] + confidence, INT8_MAX), INT8_MIN);
+}
+
+// dir -> DLEFT, DRIGHT, Forawrd. Confidence -> [0,1]
+void mouseUpdateWall(int8_t confidence, int dir)
+{
+    // if (confidence > 0)
+    // {
+    //     // lfprintf("voting wall to the ");
+    // }
+    // else
+    // {
+    //     // lfprintf("voting gap to the ");
+    // }
+    // if (dir == DRIGHT)
+    // {
+    //     // lfprintf("right\n");
+    // }
+    // else if (dir == DLEFT)
+    // {
+    //     // lfprintf("left\n");
+    // }
+    // else if (dir == DFORWARD)
+    // {
+    //     // lfprintf("ahead\n");
+    // }
     int x = g_state.x;
     int y = g_state.y;
     int facing = g_state.ori ;
@@ -176,17 +198,17 @@ void mouseUpdateWall(float confidence, int dir)
         case DRIGHT:
             if (x == MAZE_HEIGHT - 1)
                 break;
-            h_walls[x][y] += confidence;
+            add_bound_h(x,y,confidence);
             break;
         case DLEFT:
             if (x - 1 < 0)
                 break; // uhoh
-            h_walls[x - 1][y] += confidence;
+            add_bound_h(x-1,y,confidence);
             break;
         case DFORWARD:
             if (y == MAZE_WIDTH - 1)
                 break;
-            v_walls[x][y] += confidence;
+            add_bound_v(x,y,confidence);
             break;
         }
         break;
@@ -196,17 +218,17 @@ void mouseUpdateWall(float confidence, int dir)
         case DRIGHT:
             if (y - 1 < 0)
                 break; // uhoh
-            v_walls[x][y - 1] += confidence;
+            add_bound_v(x,y-1,confidence);
             break;
         case DLEFT:
             if (y == MAZE_WIDTH - 1)
                 break;
-            v_walls[x][y] += confidence;
+            add_bound_v(x,y,confidence);
             break;
         case DFORWARD:
             if (x == MAZE_HEIGHT - 1)
                 break;
-            h_walls[x][y] += confidence;
+            add_bound_h(x,y,confidence);
             break;
         }
         break;
@@ -216,17 +238,17 @@ void mouseUpdateWall(float confidence, int dir)
         case DRIGHT:
             if (x - 1 < 0)
                 break; // uhoh
-            h_walls[x - 1][y] += confidence;
+            add_bound_h(x-1,y,confidence);
             break;
         case DLEFT:
             if (x == MAZE_HEIGHT - 1)
                 break;
-            h_walls[x][y] += confidence;
+            add_bound_h(x,y,confidence);
             break;
         case DFORWARD:
             if (y - 1 < 0)
                 break; // uhoh
-            v_walls[x][y - 1] += confidence;
+            add_bound_v(x,y-1,confidence);
             break;
         }
         break;
@@ -236,17 +258,17 @@ void mouseUpdateWall(float confidence, int dir)
         case DRIGHT:
             if (y == MAZE_WIDTH - 1)
                 break;
-            v_walls[x][y] += confidence;
+            add_bound_v(x,y,confidence);
             break;
         case DLEFT:
             if (y - 1 < 0)
                 break; // uhoh
-            v_walls[x][y - 1] += confidence;
+            add_bound_v(x,y-1,confidence);
             break;
         case DFORWARD:
             if (x - 1 < 0)
                 break; // uhoh
-            h_walls[x - 1][y] += confidence;
+            add_bound_h(x-1,y,confidence);
             break;
         }
     }
