@@ -60,6 +60,7 @@
 #define BUTTON_PIN (9)
 
 #define COORD_TO_NUM(x,y) ((x) * MAZE_WIDTH + (y))
+#define min(a,b) (((a)<(b))?(a):(b))
 
 int target_states[1] = {COORD_TO_NUM(2,0)};
 
@@ -194,10 +195,8 @@ void updateOdom()
 
 
 // crack vals
-#define Kp (0.075)
-#define Kd (-0.5)
-#define Kpa (0.0)
-#define Kda (10.0)
+#define Kp (0.07)
+#define Kd (0.0)
 #define DEFAULT_DUTY (28)
 #define GOALDIST (50)
 
@@ -205,60 +204,57 @@ int curr_left_duty = DEFAULT_DUTY;
 int curr_right_duty = DEFAULT_DUTY;
 uint16_t last_right_dist = GOALDIST;
 uint16_t last_left_dist = GOALDIST;
-float last_angle = angle;
 void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
-  if (tof_distance[0] >  80)
-  {
+  // if (tof_distance[0] >  80)
+  // {
     moving = true;
-    int curr_right_dist = right_dist;
-    float ar = (curr_right_dist - last_right_dist) * Kd + (GOALDIST-curr_right_dist) * Kp + (sin(last_angle) - sin(angle)) * Kda + sin(angle) * Kpa;
-    if (abs(GOALDIST-curr_right_dist) > GOALDIST)
+    float heading = abs(min(360-angle, 0-angle));
+    float ar = (GOALDIST - tan(heading)*right_dist)*Kp;
+    if (abs(GOALDIST-right_dist) > GOALDIST)
     {
       curr_right_duty = DEFAULT_DUTY;
     } else {
       curr_right_duty = DEFAULT_DUTY + (int)ar;
     }
-    last_right_dist = curr_right_dist;
+    // last_right_dist = curr_right_dist;
 
-    int curr_left_dist = left_dist;
-    float al = (curr_left_dist - last_left_dist) * Kd + (GOALDIST-curr_left_dist) * Kp + (sin(angle) - sin(last_angle)) * Kda - sin(angle) * Kpa;
-    if (abs(GOALDIST-curr_left_dist) > GOALDIST)
+    float al = (GOALDIST - tan(heading)*left_dist)*Kp;
+    if (abs(GOALDIST-left_dist) > GOALDIST)
     {
       curr_left_duty = DEFAULT_DUTY;
     } else {
       curr_left_duty = DEFAULT_DUTY + (int)al;
     }
-    last_left_dist = curr_left_dist;
+    // last_left_dist = curr_left_dist;
 
-    last_angle = angle;
 
     moveLeftMotor(curr_left_duty,1);
     moveRightMotor(curr_right_duty,1);
-  } else {
-    smart_stop();
-    printMaze();
-    mouseUpdateWall(3, DFORWARD);
-    moving = false;
-    if (right_dist < 100)
-    {
-      // add a right wall
-      mouseUpdateWall(3, DRIGHT);
-    }
-    else
-    {
-      mouseUpdateWall(-3, DRIGHT);
-    }
-    if (left_dist < 100)
-    {
-      // add a left wall
-      mouseUpdateWall(3, DLEFT);
-    }
-    else
-    {
-      mouseUpdateWall(-3, DLEFT);
-    }
-  }
+  // } else {
+  //   smart_stop();
+  //   printMaze();
+  //   mouseUpdateWall(3, DFORWARD);
+  //   moving = false;
+  //   if (right_dist < 100)
+  //   {
+  //     // add a right wall
+  //     mouseUpdateWall(3, DRIGHT);
+  //   }
+  //   else
+  //   {
+  //     mouseUpdateWall(-3, DRIGHT);
+  //   }
+  //   if (left_dist < 100)
+  //   {
+  //     // add a left wall
+  //     mouseUpdateWall(3, DLEFT);
+  //   }
+  //   else
+  //   {
+  //     mouseUpdateWall(-3, DLEFT);
+  //   }
+  // }
 }
 
 // 0 <= duty <= 100
@@ -807,7 +803,6 @@ int explorationRun() {
       gpio_put(PICO_DEFAULT_LED_PIN, 0);
       last_right_dist = GOALDIST;
       last_left_dist = GOALDIST;
-      last_angle = angle;
     }
   }
 }
