@@ -70,7 +70,7 @@ volatile uint32_t counter = 0;
 
 volatile bool sensors_ready = false;
 
-volatile uint16_t tof_distance[3] = { 151, 50, 50 };  // make sure not to do anything till we get a first reading
+volatile uint16_t tof_distance[3] = { 151, 42, 42 };  // make sure not to do anything till we get a first reading
 
 bool moving = false;
 // motor slices and f/r channels
@@ -195,40 +195,59 @@ void updateOdom()
 
 
 // crack vals
-#define Kp (0.07)
-#define Kd (0.0)
-#define DEFAULT_DUTY (28)
-#define GOALDIST (50)
+#define Kp (0.1)
+#define Kd (-0.0)
+#define Kpa (10.0)
+
+#define DEFAULT_DUTY (26)
+#define GOALDIST (42)
 
 int curr_left_duty = DEFAULT_DUTY;
 int curr_right_duty = DEFAULT_DUTY;
-uint16_t last_right_dist = GOALDIST;
-uint16_t last_left_dist = GOALDIST;
-void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
+float last_right_dist = GOALDIST;
+float last_left_dist = GOALDIST;
+void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, float desired_heading)
 {
   // if (tof_distance[0] >  80)
   // {
     moving = true;
-    float heading = abs(min(360-angle, 0-angle));
-    float ar = (GOALDIST - tan(heading)*right_dist)*Kp;
+    float heading;
+    if(desired_heading == 0)
+    {
+      heading = min(abs(360-angle),abs(0-angle));
+    } else {
+      heading = abs(desired_heading-angle);
+    }
+    float angle_error;
+    if(desired_heading == 0 || desired_heading ==180)
+    {
+      angle_error = sin(angle*PI/180);
+    } else {
+      angle_error = cos(angle*PI/180);
+    }
+
+    float right = (GOALDIST - cos(heading* PI/180)*right_dist);
+    float ar = right*Kp + (last_right_dist - right) * Kd + angle_error*Kpa;
     if (abs(GOALDIST-right_dist) > GOALDIST)
     {
       curr_right_duty = DEFAULT_DUTY;
     } else {
       curr_right_duty = DEFAULT_DUTY + (int)ar;
     }
-    // last_right_dist = curr_right_dist;
-
-    float al = (GOALDIST - tan(heading)*left_dist)*Kp;
+    last_right_dist = right;
+    
+    float left = (GOALDIST - cos(heading* PI/180)*left_dist);
+    float al = left*Kp + (last_left_dist - left) * Kd - angle_error*Kpa;
     if (abs(GOALDIST-left_dist) > GOALDIST)
     {
       curr_left_duty = DEFAULT_DUTY;
     } else {
       curr_left_duty = DEFAULT_DUTY + (int)al;
     }
-    // last_left_dist = curr_left_dist;
-
-
+    last_left_dist = left;
+    // printf("h: %f rl: %f rr: %f  l: %d r: %d\n",heading, cos(heading* PI/180)*left_dist,cos(heading* PI/180)*right_dist,  left_dist, right_dist);
+    // sleep_ms(100);
+    printf("cr %d, cl %d\n", curr_right_duty, curr_left_duty);
     moveLeftMotor(curr_left_duty,1);
     moveRightMotor(curr_right_duty,1);
   // } else {
@@ -752,7 +771,22 @@ int explorationRun() {
     // 80mm ~ pi inches
     // printf("Core 2 TOF distance: %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     // printf(" Front dist = %5d, rightDist = %5d\n, leftDist = %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
-    center_logic(tof_distance[0], right_dist, left_dist);
+    float desired_heading;
+    if (ms.ori == ORIGHT)
+    {
+      desired_heading = 0;
+    } else if(ms.ori == OUP)
+    {
+      desired_heading = 270;
+    } else if(ms.ori == OLEFT)
+    {
+      desired_heading = 180;
+    } else if(ms.ori == ODOWN)
+    {
+      desired_heading = 90;
+    }
+
+    center_logic(tof_distance[0], right_dist, left_dist, desired_heading);
     if (!moving)
     {
       sleep_ms(1000);
