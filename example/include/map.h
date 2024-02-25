@@ -41,6 +41,8 @@ void mouseUpdateWall(int8_t confidence, int dir);
 
 void mouseUpdateDir(int dir);
 
+void mouseUpdateOri(int ori);
+
 void mouseUpdateOdom(float distance_mm);
 
 int isMouseInDestinationZone();

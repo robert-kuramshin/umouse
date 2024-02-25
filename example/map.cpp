@@ -274,6 +274,13 @@ void mouseUpdateDir(int dir)
     g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
 }
 
+void mouseUpdateOri(int ori)
+{
+    g_state.ori = ori;
+    // assume that we are in the moddle of the cell after the turn
+    g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
+}
+
 // call this once every iter of control loop?
 int isMouseInDestinationZone() {
     int first_x_dest = ((int) MAZE_HEIGHT / 2) - 1;
