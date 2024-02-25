@@ -87,7 +87,7 @@ void buildGraph(int8_t h_walls[HEIGHT - 1][WIDTH], int8_t v_walls[HEIGHT][WIDTH 
 
 int dfs(int8_t graph[HEIGHT * WIDTH][HEIGHT * WIDTH], int visited[HEIGHT * WIDTH], int path[HEIGHT * WIDTH], int curr_i, int start, int target) {
     visited[start] = 1;
-    printf("Node: %d %d\n",start/16, start%16);
+    printf("Node: %d %d\n",start/MAZE_WIDTH, start%MAZE_WIDTH);
     for (int i =0; i < HEIGHT * WIDTH; i++) {
         if (graph[start][i] == 1 && visited[i] == -1) {
             if (i != target) {
@@ -168,7 +168,7 @@ char* getPathInstructions(int* path, int target) {
     // Then here we make the instructions for the mouse.
     int size = MAZE_HEIGHT * MAZE_WIDTH;
     
-    memset(instructions,0,size);
+    memset(instructions,0,size-1);
     char orientation = ORIGHT;
     for (int i = 0; i < size; i++) {
         if (path[i] == target) {

@@ -45,7 +45,7 @@ void write_hwalls_unsafe(int8_t hw[MAZE_HEIGHT - 1][MAZE_WIDTH])
     flash_range_erase(FLASH_WALL_START_OFFSET, FLASH_SECTOR_SIZE);
     h_wall_buffer h;
     h.magic = WALLS_MAGIC;
-    memcpy(h.h_walls,hw, 15*16);
+    memcpy(h.h_walls,hw, (MAZE_HEIGHT-1)*MAZE_WIDTH);
     flash_range_program(FLASH_WALL_START_OFFSET, (const uint8_t *) &h, FLASH_PAGE_SIZE);
 }
 
@@ -53,11 +53,11 @@ void write_vwalls_unsafe(int8_t vw[MAZE_HEIGHT][MAZE_WIDTH - 1])
 {
     v_wall_buffer v;
     v.magic = WALLS_MAGIC;
-    memcpy(v.v_walls,vw, 15*16);
+    memcpy(v.v_walls,vw, MAZE_HEIGHT*(MAZE_WIDTH-1));
     flash_range_program(FLASH_WALL_START_OFFSET + FLASH_PAGE_SIZE, (const uint8_t *) &v, FLASH_PAGE_SIZE);
 }
 
-void write_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1])
+void write_walls(int8_t *h_walls, int8_t *v_walls)
 {
     flash_safe_execute((void (*)(void *))write_hwalls_unsafe, (void *)h_walls, 1000);
     flash_safe_execute((void (*)(void *))write_vwalls_unsafe, (void *)v_walls, 1000);
@@ -76,7 +76,7 @@ int read_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_
         return -2;
     }
     memcpy(h_walls, h->h_walls, (MAZE_HEIGHT - 1) * MAZE_WIDTH);
-    memcpy(v_walls, v->v_walls, (MAZE_HEIGHT - 1) * MAZE_WIDTH);
+    memcpy(v_walls, v->v_walls, MAZE_HEIGHT * (MAZE_WIDTH-1));
 
     return 0;
 

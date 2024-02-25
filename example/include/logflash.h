@@ -44,13 +44,13 @@ typedef struct log_buffer_header {
 typedef struct h_wall_buffer {
     uint32_t magic;
     int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH];
-    char padding[12];
+    char padding[256-(MAZE_HEIGHT-1)*MAZE_WIDTH];
 } h_wall_buffer_t;
 
 typedef struct v_wall_buffer {
     uint32_t magic;
     int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH-1];
-    char padding[12];
+    char padding[256-(MAZE_HEIGHT)*(MAZE_WIDTH-1)];
 } v_wall_buffer_t;
 
 typedef struct page {
@@ -69,7 +69,7 @@ int init_log_flash();
 
 int read_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1]);
 
-void write_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1]);
+void write_walls(int8_t *h_walls, int8_t *v_walls);
 
 void lfprintf(const char *format, ...);
 

@@ -49,9 +49,9 @@ int mouseCanGoRight();
 
 int mouseCanGoLeft();
 
-void getVWalls(int8_t[MAZE_HEIGHT][MAZE_WIDTH - 1]);
+int8_t* getVWalls();
 
-void getHWalls(int8_t[MAZE_HEIGHT - 1][MAZE_WIDTH]);
+int8_t* getHWalls();
 
 void setVWalls(int8_t[MAZE_HEIGHT][MAZE_WIDTH - 1]);
 

@@ -59,7 +59,7 @@
 
 #define BUTTON_PIN (9)
 
-#define COORD_TO_NUM(x,y) ((x) * MAZE_HEIGHT + (y))
+#define COORD_TO_NUM(x,y) ((x) * MAZE_WIDTH + (y))
 
 int target_states[1] = {COORD_TO_NUM(2,0)};
 
@@ -201,25 +201,25 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
     smart_stop();
     printMaze();
 
-    mouseUpdateWall(100, DFORWARD);
+    mouseUpdateWall(3, DFORWARD);
     moving = false;
     if (right_dist < 100)
     {
       // add a right wall
-      mouseUpdateWall(100, DRIGHT);
+      mouseUpdateWall(3, DRIGHT);
     }
     else
     {
-      mouseUpdateWall(-100, DRIGHT);
+      mouseUpdateWall(-3, DRIGHT);
     }
     if (left_dist < 100)
     {
       // add a left wall
-      mouseUpdateWall(100, DLEFT);
+      mouseUpdateWall(3, DLEFT);
     }
     else
     {
-      mouseUpdateWall(-100, DLEFT);
+      mouseUpdateWall(-3, DLEFT);
     }
   }
   else
@@ -655,7 +655,7 @@ void goRight() {
   {
     while (left_c < right_c)
     {
-      printf("angle %f, while %f < %f\n", angle, left_c, right_c);
+      // printf("angle %f, while %f < %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
       turn_right(30);
@@ -666,7 +666,7 @@ void goRight() {
   {
     while (left_c > right_c)
     {
-      printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+      // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
       turn_right(30);
@@ -696,21 +696,22 @@ int explorationRun() {
     sleep_ms(50);
   }
   int turn_around_counter = 0;
-  
+
+  int start_cell = -1;
   while (true)
   {
     updateOdom();
-
     state_t ms = mouseGetState();
+    int curr_cell = ms.x * MAZE_HEIGHT + ms.y;
     for (int i = 0; i< sizeof(target_states)/sizeof(target_states[0]); i++)
     {
       if (COORD_TO_NUM(ms.x,ms.y) == target_states[i])
       {
         smart_stop();
-        int8_t v[MAZE_HEIGHT][MAZE_WIDTH - 1];
-        int8_t h[MAZE_HEIGHT - 1][MAZE_WIDTH];
-        getVWalls(v);
-        getHWalls(h);
+        mouseUpdateWall(right_dist < 70 ? 1 : -1, DRIGHT);
+        mouseUpdateWall(left_dist < 70 ? 1 : -1, DLEFT);
+        int8_t *v = getVWalls();
+        int8_t *h = getHWalls();
         write_walls(h,v);
         update_target(target_states[i]);
         setGreenStatus();
@@ -721,34 +722,29 @@ int explorationRun() {
     uint16_t right_dist = tof_distance[1];
     uint16_t left_dist = tof_distance[2];
     // build map while we are moving
-    if (right_dist < 100)
-    {
-      mouseUpdateWall(1, DRIGHT);
-    }
-    else
-    {
-      mouseUpdateWall(-1, DRIGHT);
-    }
+    if (start_cell != curr_cell){
+        if (right_dist < 70)
+      {
+        mouseUpdateWall(1, DRIGHT);
+      }
+      else
+      {
+        mouseUpdateWall(-1, DRIGHT);
+      }
 
-    if (left_dist < 100)
-    {
-      mouseUpdateWall(1, DLEFT);
-    }
-    else
-    {
-      mouseUpdateWall(-1, DLEFT);
+      if (left_dist < 70)
+      {
+        mouseUpdateWall(1, DLEFT);
+      }
+      else
+      {
+        mouseUpdateWall(-1, DLEFT);
+      }
     }
     // 80mm ~ pi inches
     // printf("Core 2 TOF distance: %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     // printf(" Front dist = %5d, rightDist = %5d\n, leftDist = %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     center_logic(tof_distance[0], right_dist, left_dist);
-    if (isMouseInDestinationZone() == 1)
-    {
-      // I wonder if this check takes long enough for the mouse to make a mistake while moving?
-      brake(100);
-      // successful exploration! found the destination square;
-      return 1;
-    }
     if (!moving)
     {
       sleep_ms(1000);
@@ -795,7 +791,7 @@ int explorationRun() {
           turn_around_counter++;
         }
       }
-      // zero encoders after turn
+      start_cell = ms.x * MAZE_HEIGHT + ms.y;;
     }
   }
 }
@@ -916,7 +912,6 @@ int main()
     int8_t h[MAZE_HEIGHT - 1][MAZE_WIDTH];
     int target = get_target();
     int ret = read_walls(h,v);
-    target = 32;
     if (ret <0 || target == -1)
     {
       setRedStatus();

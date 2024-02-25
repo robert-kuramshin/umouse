@@ -12,20 +12,20 @@ int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
 state_t g_state = {
     DRIGHT, 0, 0, CELL_WIDHT_MM / 2}; // global micrmomouse state
 
-void getVWalls(int8_t walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
-    walls = v_walls;
+int8_t* getVWalls() {
+    return (int8_t *)v_walls;
 }
 
-void getHWalls(int8_t walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
-    walls = h_walls;
+int8_t* getHWalls() {
+    return (int8_t *)h_walls;
 }
 
 void setVWalls(int8_t walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
-    memcpy(v_walls, walls, 15*16);
+    memcpy(v_walls, walls, MAZE_HEIGHT*(MAZE_WIDTH - 1));
 }
 
 void setHWalls(int8_t walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
-    memcpy(h_walls, walls, 15*16);
+    memcpy(h_walls, walls, (MAZE_HEIGHT - 1)*MAZE_WIDTH);
 }
 
 void printMaze()
@@ -53,7 +53,7 @@ void printMaze()
         for (int y = 0; y < MAZE_WIDTH; y++)
         {
             // print vertication
-            lfprintf("%2.0f ", h_walls[x][y]);
+            lfprintf("%d ", h_walls[x][y]);
         }
         lfprintf("\n");
     }
@@ -166,29 +166,14 @@ void add_bound_v(int x, int y, int8_t confidence)
 // dir -> DLEFT, DRIGHT, Forawrd. Confidence -> [0,1]
 void mouseUpdateWall(int8_t confidence, int dir)
 {
-    // if (confidence > 0)
-    // {
-    //     // lfprintf("voting wall to the ");
-    // }
-    // else
-    // {
-    //     // lfprintf("voting gap to the ");
-    // }
-    // if (dir == DRIGHT)
-    // {
-    //     // lfprintf("right\n");
-    // }
-    // else if (dir == DLEFT)
-    // {
-    //     // lfprintf("left\n");
-    // }
-    // else if (dir == DFORWARD)
-    // {
-    //     // lfprintf("ahead\n");
-    // }
     int x = g_state.x;
     int y = g_state.y;
-    int facing = g_state.ori ;
+    int facing = g_state.ori;
+
+    if (g_state.dist_in_cell_mm > 91 || g_state.dist_in_cell_mm < 89)
+    {
+        return;
+    }
 
     switch (facing)
     {
