@@ -183,9 +183,20 @@ void updateOdom()
   last_odom = dist;
 }
 
-#define Kd (-0.5)
+
+// jittery vals
+// #define Kp (0.07)
+// #define Kd (-0.1)
+// #define Kpa (15)
+// #define Kda (1.0)
+// #define DEFAULT_DUTY (26)
+// #define GOALDIST (55)
+
+
+// crack vals
 #define Kp (0.075)
-#define Kpa (0)
+#define Kd (-0.5)
+#define Kpa (0.0)
 #define Kda (10.0)
 #define DEFAULT_DUTY (28)
 #define GOALDIST (50)
@@ -194,97 +205,60 @@ int curr_left_duty = DEFAULT_DUTY;
 int curr_right_duty = DEFAULT_DUTY;
 uint16_t last_right_dist = GOALDIST;
 uint16_t last_left_dist = GOALDIST;
-float last_angle = 0;
+float last_angle = angle;
 void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist)
 {
-  moving = true;
-  int curr_right_dist = right_dist;
-  float ar = (curr_right_dist - last_right_dist) * Kd + (GOALDIST-curr_right_dist) * Kp + (sin(last_angle) - sin(angle)) * Kda + sin(angle) * Kpa;
-  if (abs(GOALDIST-curr_right_dist) > GOALDIST)
+  if (tof_distance[0] >  80)
   {
-    curr_right_duty = DEFAULT_DUTY;
+    moving = true;
+    int curr_right_dist = right_dist;
+    float ar = (curr_right_dist - last_right_dist) * Kd + (GOALDIST-curr_right_dist) * Kp + (sin(last_angle) - sin(angle)) * Kda + sin(angle) * Kpa;
+    if (abs(GOALDIST-curr_right_dist) > GOALDIST)
+    {
+      curr_right_duty = DEFAULT_DUTY;
+    } else {
+      curr_right_duty = DEFAULT_DUTY + (int)ar;
+    }
+    last_right_dist = curr_right_dist;
+
+    int curr_left_dist = left_dist;
+    float al = (curr_left_dist - last_left_dist) * Kd + (GOALDIST-curr_left_dist) * Kp + (sin(angle) - sin(last_angle)) * Kda - sin(angle) * Kpa;
+    if (abs(GOALDIST-curr_left_dist) > GOALDIST)
+    {
+      curr_left_duty = DEFAULT_DUTY;
+    } else {
+      curr_left_duty = DEFAULT_DUTY + (int)al;
+    }
+    last_left_dist = curr_left_dist;
+
+    last_angle = angle;
+
+    moveLeftMotor(curr_left_duty,1);
+    moveRightMotor(curr_right_duty,1);
   } else {
-    curr_right_duty = DEFAULT_DUTY + (int)ar;
+    smart_stop();
+    printMaze();
+    mouseUpdateWall(3, DFORWARD);
+    moving = false;
+    if (right_dist < 100)
+    {
+      // add a right wall
+      mouseUpdateWall(3, DRIGHT);
+    }
+    else
+    {
+      mouseUpdateWall(-3, DRIGHT);
+    }
+    if (left_dist < 100)
+    {
+      // add a left wall
+      mouseUpdateWall(3, DLEFT);
+    }
+    else
+    {
+      mouseUpdateWall(-3, DLEFT);
+    }
   }
-  last_right_dist = curr_right_dist;
-
-  int curr_left_dist = left_dist;
-  float al = (curr_left_dist - last_left_dist) * Kd + (GOALDIST-curr_left_dist) * Kp + (sin(angle) - sin(last_angle)) * Kda - sin(angle) * Kpa;
-  if (abs(GOALDIST-curr_left_dist) > GOALDIST)
-  {
-    curr_left_duty = DEFAULT_DUTY;
-  } else {
-    curr_left_duty = DEFAULT_DUTY + (int)al;
-  }
-  last_left_dist = curr_left_dist;
-
-  last_angle = angle;
-
-  moveLeftMotor(curr_left_duty,1);
-  moveRightMotor(curr_right_duty,1);
-  // int duty = 30;
-  // // This is the condition where you are stopped in a straight route.
-  // if (front_dist < 130)
-  // {
-  //     gpio_put(PICO_DEFAULT_LED_PIN, 1);   
-  //   if (!moving)
-  //   {
-  //     goForward(duty);
-  //   }
-  //   else
-  //   {
-  //     goForward(duty - 5);
-  //   }
-
-  //   while (tof_distance[0] >  80)
-  //   {
-  //     sleep_us(1);
-  //   }
-  //   smart_stop();
-  //   printMaze();
-  //   mouseUpdateWall(3, DFORWARD);
-  //   moving = false;
-  //   if (right_dist < 100)
-  //   {
-  //     // add a right wall
-  //     mouseUpdateWall(3, DRIGHT);
-  //   }
-  //   else
-  //   {
-  //     mouseUpdateWall(-3, DRIGHT);
-  //   }
-  //   if (left_dist < 100)
-  //   {
-  //     // add a left wall
-  //     mouseUpdateWall(3, DLEFT);
-  //   }
-  //   else
-  //   {
-  //     mouseUpdateWall(-3, DLEFT);
-  //   }
-  // }
-  // else
-  // {
-  //   moving = true;
-  //   int left_duty = duty;
-  //   int right_duty = duty;
-  //   if (left_dist < 60)
-  //   {
-  //     // veer right;
-  //     // brake(100);
-  //     // sleep_ms(1000);
-  //     right_duty = right_duty - (60 - left_dist) / 12;
-  //   }
-  //   if (right_dist < 60)
-  //   {
-  //     // veer left
-  //     // brake(100);
-  //     // sleep_ms(1000);
-  //     left_duty = left_duty - (60 - right_dist) / 12;
-  //   }
-  //   moveRightMotor(right_duty, 1);
-  //   moveLeftMotor(left_duty, 1);
-  // }
 }
 
 // 0 <= duty <= 100
@@ -643,7 +617,7 @@ void goLeft()
   {
     while (left_c > right_c)
     {
-      turn_left(30);
+      turn_left(25);
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
@@ -653,7 +627,7 @@ void goLeft()
   {
     while (left_c < right_c)
     {
-      turn_left(30);
+      turn_left(25);
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
@@ -696,7 +670,7 @@ void goRight() {
       // printf("angle %f, while %f < %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-      turn_right(30);
+      turn_right(25);
     }
     printf("angle %f, while %f > %f\n", angle, left_c, right_c);
   }
@@ -707,7 +681,7 @@ void goRight() {
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-      turn_right(30);
+      turn_right(25);
     }
     printf("angle %f, while %f > %f\n", angle, left_c, right_c);
   }
@@ -830,7 +804,10 @@ int explorationRun() {
         }
       }
       start_cell = ms.x * MAZE_HEIGHT + ms.y;;
-  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+      gpio_put(PICO_DEFAULT_LED_PIN, 0);
+      last_right_dist = GOALDIST;
+      last_left_dist = GOALDIST;
+      last_angle = angle;
     }
   }
 }
