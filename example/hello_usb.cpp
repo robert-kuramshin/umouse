@@ -60,10 +60,10 @@
 
 #define BUTTON_PIN (9)
 
-#define COORD_TO_NUM(x, y) ((x)*MAZE_WIDTH + (y))
+#define COORD_TO_NUM(x, y) ((x) * MAZE_WIDTH + (y))
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
-int target_states[1] = { COORD_TO_NUM(2, 0) };
+int target_states[1] = {COORD_TO_NUM(2, 0)};
 
 // For the TOF, we are using : sda -> gpio16 scl -> gpio17 xshut -> pulled high at gpio22
 
@@ -71,7 +71,7 @@ volatile uint32_t counter = 0;
 
 volatile bool sensors_ready = false;
 
-volatile uint16_t tof_distance[3] = { 151, 42, 42 };  // make sure not to do anything till we get a first reading
+volatile uint16_t tof_distance[3] = {151, 36, 36}; // make sure not to do anything till we get a first reading
 
 bool moving = false;
 // motor slices and f/r channels
@@ -254,7 +254,7 @@ void updateOdom()
 #define Kpa (0.0)
 
 #define DEFAULT_DUTY (29)
-#define GOALDIST (42)
+#define GOALDIST (36)
 
 int curr_left_duty = DEFAULT_DUTY;
 int curr_right_duty = DEFAULT_DUTY;
@@ -264,7 +264,18 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
 {
   // todo(prasthamdesai): maybe add unstick() call somewhere in here
   // after testing on maze at comp
-  if (tof_distance[0] > 80)
+  float heading;
+  float curr_angle = angle;
+  if (desired_heading == 0)
+  {
+    heading = min(abs(360 - angle), abs(0 - angle));
+  }
+  else
+  {
+    heading = abs(desired_heading - angle);
+  }
+  printf("Distance threshold: %2.0f, front dist: %d, angle_now: %2.0f, saved_angle: %2.0f, desired_angle: %d\n", 80 * (1.0 - heading / 90.0), tof_distance[0], angle, curr_angle, desired_heading);
+  if (tof_distance[0] > 12)
   {
     if (!moving)
     {
@@ -272,15 +283,6 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
       sleep_ms(100);
     }
     moving = true;
-    float heading;
-    if (desired_heading == 0)
-    {
-      heading = min(abs(360 - angle), abs(0 - angle));
-    }
-    else
-    {
-      heading = abs(desired_heading - angle);
-    }
     float angle_error;
     if (desired_heading == 0)
     {
@@ -334,15 +336,16 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
 
     if (curr_right_duty > DEFAULT_DUTY)
     {
+      // printf("We are supposed to be GREEN!\n");
       gpio_put(GREEN_PIN, 1);
     }
     else
     {
       gpio_put(GREEN_PIN, 0);
     }
-    // printf("h: %f rl: %f rr: %f  l: %d r: %d\n",heading, cos(heading* PI/180)*left_dist,cos(heading*
-    // PI/180)*right_dist,  left_dist, right_dist); sleep_ms(100); printf("cr %d, cl %d\n", curr_right_duty,
-    // curr_left_duty);
+    // printf("h: %f rl: %f rr: %f  l: %d r: %d\n", heading, cos(heading * PI / 180) * left_dist, cos(heading * PI / 180) * right_dist, left_dist, right_dist);
+    // sleep_ms(100); printf("cr %d, cl %d\n", curr_right_duty,
+    // // curr_left_duty);
     moveLeftMotor(curr_left_duty, 1);
     moveRightMotor(curr_right_duty * 1.17, 1);
   }
@@ -379,7 +382,9 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
     smart_stop();
   }
 }
-
+// 5.1 right
+// 5.1 left
+// 17 - 10.2
 // 0 <= duty <= 100
 void pwm_set_duty(uint slice_num, uint chan, int duty)
 {
@@ -465,25 +470,31 @@ void moveLeftMotor(int duty, int direction)
 // otherwise set last_stuck_time = get_absolute_time();
 float last_stuck_dist = 0;
 absolute_time_t last_reading_time = get_absolute_time();
-void unstick()
+// return success
+int unstick()
 {
+  int success = -1;
   float dist = encoders_distance_traveled();
+  uint16_t right_dist = tof_distance[1];
+    uint16_t left_dist = tof_distance[2];
   if (dist == last_stuck_dist)
   {
-    if (absolute_time_diff_us(last_reading_time, get_absolute_time()) > 3 * 1000000)
+    if (absolute_time_diff_us(last_reading_time, get_absolute_time()) > 1 * 1000000)
     {
       last_stuck_dist = 0;
-      if (tof_distance[1] < tof_distance[2])
+      success = 1;
+
+      if (right_dist < left_dist)
       {
-        moveRightMotor(35 * 1.17, -1);
-        moveLeftMotor(27, -1);
-        sleep_ms(500);
+        moveRightMotor(31 * 1.17, -1);
+        moveLeftMotor(39, -1);
+        sleep_ms(200);
       }
       else
       {
-        moveRightMotor(27 * 1.17, -1);
-        moveLeftMotor(35, -1);
-        sleep_ms(500);
+        moveRightMotor(39 * 1.17, -1);
+        moveLeftMotor(31, -1);
+        sleep_ms(200);
       }
     }
   }
@@ -492,6 +503,7 @@ void unstick()
     last_stuck_dist = dist;
     last_reading_time = get_absolute_time();
   }
+  return success;
 }
 
 #define HMC5883L_ADDR 0x1E
@@ -503,7 +515,7 @@ void unstick()
 
 void init_mpu()
 {
-  uint8_t data[2] = { CONFIG_REG_A, 0x78 };
+  uint8_t data[2] = {CONFIG_REG_A, 0x78};
   i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
   data[0] = CONFIG_REG_B;
   data[1] = 0x20;
@@ -513,7 +525,7 @@ void init_mpu()
   i2c_write_blocking(i2c0, HMC5883L_ADDR, data, 2, false);
 }
 
-static void read_registers(uint8_t reg, uint8_t* buf, uint16_t len)
+static void read_registers(uint8_t reg, uint8_t *buf, uint16_t len)
 {
   reg |= 1;
   i2c_write_blocking(i2c0, HMC5883L_ADDR, &reg, 1, false);
@@ -524,8 +536,8 @@ void core1_entry()
 {
   flash_safe_execute_core_init();
   // init tof sensor
-  VL53L1X_Result_t results[3] = { 0 };
-  VL53L1X_Status_t status[3] = { 0 };
+  VL53L1X_Result_t results[3] = {0};
+  VL53L1X_Status_t status[3] = {0};
 
   i2c_init(i2c0, 100000);
 
@@ -559,7 +571,7 @@ void core1_entry()
   gpio_init(28);
   gpio_set_dir(28, GPIO_OUT);
   gpio_put(28, 0);
-  uint16_t addrs[3] = { I2C_DEV_ADDR_2, I2C_DEV_ADDR_1, I2C_DEV_ADDR_0 };
+  uint16_t addrs[3] = {I2C_DEV_ADDR_2, I2C_DEV_ADDR_1, I2C_DEV_ADDR_0};
   status[0] = tof_init(22, I2C_DEV_ADDR_2);
   printf("TOF 0 status %d\n", status[0]);
   status[1] = tof_init(18, I2C_DEV_ADDR_1);
@@ -568,10 +580,10 @@ void core1_entry()
   printf("TOF 2 status %d\n", status[2]);
   printf("Done configuring sensor!\n");
   sensors_ready = true;
-  bool first_range[3] = { true, true, true };
+  bool first_range[3] = {true, true, true};
   float x, y, z;
   float xl = 0, yl = 0, zl = 0;
-  uint8_t rawdata[6] = { 0 };
+  uint8_t rawdata[6] = {0};
 
   // this polling loop runs forever in thread 2
   while (true)
@@ -652,7 +664,7 @@ void core1_entry()
       status[i] += VL53L1X_ClearInterrupt(addrs[i]);
       // sleep_ms(1000);
       if (first_range[i])
-      {  // Clear twice on first measurement
+      { // Clear twice on first measurement
         status[i] += VL53L1X_ClearInterrupt(addrs[i]);
         first_range[i] = false;
       }
@@ -660,7 +672,7 @@ void core1_entry()
   }
 }
 
-void performInstructions(char* instructions)
+void performInstructions(char *instructions)
 {
 }
 
@@ -741,7 +753,9 @@ void goLeft()
   {
     while (left_c > right_c)
     {
-      unstick();
+      if (unstick() == 1) {
+        break;
+      }
       turn_left(29);
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
@@ -752,7 +766,9 @@ void goLeft()
   {
     while (left_c < right_c)
     {
-      unstick();
+      if (unstick() == 1) {
+        break;
+      }
       turn_left(29);
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
@@ -793,7 +809,9 @@ void goRight()
   {
     while (left_c < right_c)
     {
-      unstick();
+      if (unstick() == 1) {
+        break;
+      }
       // printf("angle %f, while %f < %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
@@ -805,7 +823,9 @@ void goRight()
   {
     while (left_c > right_c)
     {
-      unstick();
+      if (unstick() == 1) {
+        break;
+      }
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
@@ -841,8 +861,7 @@ int explorationRun()
   int start_cell = -1;
   while (true)
   {
-    unstick();
-
+    int k = unstick();
     updateOdom();
     state_t ms = mouseGetState();
     uint16_t right_dist = tof_distance[1];
@@ -855,8 +874,8 @@ int explorationRun()
         smart_stop();
         mouseUpdateWall(right_dist < 70 ? 1 : -1, DRIGHT);
         mouseUpdateWall(left_dist < 70 ? 1 : -1, DLEFT);
-        int8_t* v = getVWalls();
-        int8_t* h = getHWalls();
+        int8_t *v = getVWalls();
+        int8_t *h = getHWalls();
         write_walls(h, v);
         update_target(target_states[i]);
         setGreenStatus();
@@ -887,8 +906,7 @@ int explorationRun()
     }
     // 80mm ~ pi inches
     // printf("Core 2 TOF distance: %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
-    // printf(" Front dist = %5d, rightDist = %5d\n, leftDist = %5d\n", tof_distance[0], tof_distance[1],
-    // tof_distance[2]);
+    // printf(" Front dist = %5d, rightDist = %5d\n, leftDist = %5d\n", tof_distance[0], tof_distance[1], tof_distance[2]);
     float desired_heading;
     if (ms.ori == ORIGHT)
     {
@@ -910,7 +928,7 @@ int explorationRun()
     center_logic(tof_distance[0], right_dist, left_dist, desired_heading);
     if (!moving)
     {
-      unstick();
+      int k = unstick();
       printf("We have stopped moving!");
       updateOdom();
       // printf("Go Left (L) or Right (R) ?\n");
@@ -958,7 +976,7 @@ int explorationRun()
   }
 }
 
-int solvedRun(char* instructions)
+int solvedRun(char *instructions)
 {
   for (int i = 0; i < MAZE_HEIGHT * MAZE_WIDTH; i++)
   {
@@ -1091,7 +1109,7 @@ int main()
     printMaze();
     printf("Target is %d\n", target);
     buildGraph(h, v);
-    char* instructions = getPathInstructions(getShortestDistancePath(0, target), target);
+    char *instructions = getPathInstructions(getShortestDistancePath(0, target), target);
     // // write this to robs buffer (instructions) (could also just write it while generating instructions)
     lfprintf("Shortest path instructions for mouse\n");
     lfprintf(instructions);

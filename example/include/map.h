@@ -5,6 +5,7 @@
 #include "stdio.h"
 
 #include "string.h"
+#include <cstdint>
 
 #define MAZE_WIDTH (16)
 #define MAZE_HEIGHT (16)

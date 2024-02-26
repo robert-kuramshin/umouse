@@ -21,7 +21,6 @@ if (TARGET tinyusb_device)
             hardware_adc 
             pico_cyw43_arch_none 
             pico_multicore 
-            pac-mpu9250
             hardware_flash)
 
     target_include_directories(hello_usb PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
@@ -105,7 +104,6 @@ if (TARGET tinyusb_device)
     pico_add_extra_outputs(test_odometry)
 
 
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/pico-arduino-compat/libs/mpu9250)
     add_executable(mpu9250
     mpu9250.cpp
             )
@@ -114,7 +112,6 @@ if (TARGET tinyusb_device)
     target_link_libraries(mpu9250 
                 hardware_i2c  
             pico_stdlib
-            pac-mpu9250
             )
 
 
