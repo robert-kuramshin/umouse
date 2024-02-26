@@ -233,7 +233,12 @@ void updateOdom()
     mouseUpdateOri(OUP);
   }
   float dist = encoders_distance_traveled();
-  mouseUpdateOdom(dist - last_odom);
+  if (right_moving_forward == 0 && left_moving_forward == 0) {
+    mouseUpdateOdom(last_odom - dist);
+  }
+  else if (right_moving_forward > 0 && left_moving_forward > 0){
+    mouseUpdateOdom(dist - last_odom);
+  }
   last_odom = dist;
 }
 
@@ -253,7 +258,7 @@ void updateOdom()
 #define Kd (-10.0)
 #define Kpa (0.0)
 
-#define DEFAULT_DUTY (29)
+#define DEFAULT_DUTY (34)
 #define GOALDIST (36)
 
 int curr_left_duty = DEFAULT_DUTY;
@@ -279,7 +284,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
   {
     if (!moving)
     {
-      goForward(35);
+      goForward(60);
       sleep_ms(100);
     }
     moving = true;
@@ -347,7 +352,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
     // sleep_ms(100); printf("cr %d, cl %d\n", curr_right_duty,
     // // curr_left_duty);
     moveLeftMotor(curr_left_duty, 1);
-    moveRightMotor(curr_right_duty * 1.17, 1);
+    moveRightMotor(curr_right_duty * 1.13, 1);
   }
   else
   {
@@ -374,7 +379,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
       mouseUpdateWall(-3, DLEFT);
     }
 
-    goBackward(30);
+    goBackward(40);
     while (tof_distance[0] < 30)
     {
       sleep_us(1);
@@ -476,25 +481,25 @@ int unstick()
   int success = -1;
   float dist = encoders_distance_traveled();
   uint16_t right_dist = tof_distance[1];
-    uint16_t left_dist = tof_distance[2];
+  uint16_t left_dist = tof_distance[2];
   if (dist == last_stuck_dist)
   {
     if (absolute_time_diff_us(last_reading_time, get_absolute_time()) > 1 * 1000000)
     {
       last_stuck_dist = 0;
       success = 1;
-
+      moving = false;
       if (right_dist < left_dist)
       {
-        moveRightMotor(31 * 1.17, -1);
-        moveLeftMotor(39, -1);
-        sleep_ms(200);
+        moveRightMotor(37 * 1.17, -1);
+        moveLeftMotor(47, -1);
+        sleep_ms(300);
       }
       else
       {
-        moveRightMotor(39 * 1.17, -1);
-        moveLeftMotor(31, -1);
-        sleep_ms(200);
+        moveRightMotor(47 * 1.17, -1);
+        moveLeftMotor(37, -1);
+        sleep_ms(300);
       }
     }
   }
@@ -732,6 +737,7 @@ void smart_stop()
 
 void goLeft()
 {
+  int duty = 35;
   int curr_quad;
   int low_quad = (int)(angle / 90);
   int high_quad = low_quad + 1;
@@ -747,16 +753,17 @@ void goLeft()
   float left_c = sin(angle * PI / 180);
   float right_c = sin((target_quad * 90 + break_dist) * PI / 180);
   gpio_put(PICO_DEFAULT_LED_PIN, 1);
-  turn_left(35);
+  turn_left(40);
   sleep_ms(50);
   if (target_quad == 0 || target_quad == 3)
   {
     while (left_c > right_c)
     {
-      if (unstick() == 1) {
+      if (unstick() == 1)
+      {
         break;
       }
-      turn_left(29);
+      turn_left(duty);
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
@@ -766,10 +773,11 @@ void goLeft()
   {
     while (left_c < right_c)
     {
-      if (unstick() == 1) {
+      if (unstick() == 1)
+      {
         break;
       }
-      turn_left(29);
+      turn_left(duty);
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
@@ -786,6 +794,7 @@ void goLeft()
 
 void goRight()
 {
+  int duty = 35;
   int curr_quad;
   int low_quad = (int)(angle / 90);
   int high_quad = low_quad + 1;
@@ -803,19 +812,20 @@ void goRight()
   float right_c = sin((target_quad * 90 - break_dist) * PI / 180);
 
   gpio_put(PICO_DEFAULT_LED_PIN, 1);
-  turn_right(35);
+  turn_right(40);
   sleep_ms(50);
   if (target_quad == 4 || target_quad == 1)
   {
     while (left_c < right_c)
     {
-      if (unstick() == 1) {
+      if (unstick() == 1)
+      {
         break;
       }
       // printf("angle %f, while %f < %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-      turn_right(29);
+      turn_right(duty);
     }
     printf("angle %f, while %f > %f\n", angle, left_c, right_c);
   }
@@ -823,13 +833,14 @@ void goRight()
   {
     while (left_c > right_c)
     {
-      if (unstick() == 1) {
+      if (unstick() == 1)
+      {
         break;
       }
       // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
       left_c = sin(angle * PI / 180);
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
-      turn_right(29);
+      turn_right(duty);
     }
     printf("angle %f, while %f > %f\n", angle, left_c, right_c);
   }
@@ -957,10 +968,23 @@ int explorationRun()
         {
           turn_around_counter = 0;
           printf("turning around\n");
-          goRight();
-          goRight();
+          if (tof_distance[1] > tof_distance[2])
+          {
+            // we should turn right;
+            goRight();
+            goRight();
+          }
+          else
+          {
+            // turn left
+            goLeft();
+            goLeft();
+          }
+
           smart_stop();
           mouseUpdateDir(DBACKWARDS);
+          goBackward(40);
+          sleep_ms(750);
         }
         else
         {
