@@ -746,7 +746,7 @@ void smart_stop()
 
 void goLeft()
 {
-  int duty = 35;
+  int duty = 36;
   int curr_quad;
   int low_quad = (int)(angle / 90);
   int high_quad = low_quad + 1;
@@ -803,7 +803,7 @@ void goLeft()
 
 void goRight()
 {
-  int duty = 35;
+  int duty = 36;
   int curr_quad;
   int low_quad = (int)(angle / 90);
   int high_quad = low_quad + 1;
@@ -862,20 +862,27 @@ void goRight()
   zeroOdom();
 }
 
+int last_greedy_x = 0;
+int last_greedy_y = 0;
 void greedy_center_turn(state_t g_state, int right, int left)
 {
-  if (right == 0 && left == 0) {
-    return;
-  }
   int x = g_state.x;
   int y = g_state.y;
+  if (right == 0 && left == 0)
+  {
+    return;
+  }
+  if (x == last_greedy_x && y == last_greedy_y)
+  {
+    return;
+  }
   int facing = g_state.ori;
   int should_do_right = 0;
   int should_do_left = 0;
   switch (facing)
   {
   case ORIGHT:
-    if (abs(y + 1 - center_y) >= abs(y - 1 - center_y))
+    if (abs(x + 1 - center_x) <= abs(x - 1 - center_x))
     {
       should_do_right = 1;
     }
@@ -884,25 +891,25 @@ void greedy_center_turn(state_t g_state, int right, int left)
       should_do_left = 1;
     }
   case ODOWN:
-    if (abs(x + 1 - center_x) >= abs(x - 1 - center_x))
+    if (abs(y + 1 - center_y) <= abs(y - 1 - center_y))
     {
-      should_do_right = 1;
+      should_do_left = 1;
     }
     else
     {
-      should_do_left = 1;
+      should_do_right = 1;
     }
   case OLEFT:
-    if (abs(y + 1 - center_y) >= abs(y - 1 - center_y))
-    {
-      should_do_right = 1;
-    }
-    else
+    if (abs(x + 1 - center_x) <= abs(x - 1 - center_x))
     {
       should_do_left = 1;
     }
+    else
+    {
+      should_do_right = 1;
+    }
   case OUP:
-    if (abs(x + 1 - center_x) >= abs(x - 1 - center_x))
+    if (abs(y + 1 - center_y) <= abs(y - 1 - center_y))
     {
       should_do_right = 1;
     }
@@ -912,24 +919,43 @@ void greedy_center_turn(state_t g_state, int right, int left)
     }
   }
 
-  if (right == 0 && left == 1) {
-    if (should_do_left == 1) {
-      goLeft();
-      return;
-    }
-  } else if (right == 1 && left == 0) {
-    if (should_do_right == 1) {
-      goRight();
-      return;
-    }
-  } else if (right == 1 && left == 1)
+  printf("x: %d, y: %d, right wall: %d, left_wall: %d, should_do_right: %d, should_do_left: %d\n", x, y, right, left, should_do_right, should_do_left);
+
+  if (right == 0 && left == 1)
   {
-    if (should_do_left) {
+    if (should_do_left == 1)
+    {
+      last_greedy_x = x;
+      last_greedy_y = y;
+      sleep_ms(150);
       goLeft();
-      return;
-    } else {
+    }
+  }
+  else if (right == 1 && left == 0)
+  {
+    if (should_do_right == 1)
+    {
+      last_greedy_x = x;
+      last_greedy_y = y;
+      sleep_ms(150);
       goRight();
-      return;
+    }
+  }
+  else if (right == 1 && left == 1)
+  {
+    if (should_do_left)
+    {
+      last_greedy_x = x;
+      last_greedy_y = y;
+      sleep_ms(150);
+      goLeft();
+    }
+    else
+    {
+      last_greedy_x = x;
+      last_greedy_y = y;
+      sleep_ms(150);
+      goRight();
     }
   }
 }
@@ -971,21 +997,21 @@ int explorationRun()
     uint16_t right_dist = tof_distance[1];
     uint16_t left_dist = tof_distance[2];
     int curr_cell = ms.x * MAZE_HEIGHT + ms.y;
-    for (int i = 0; i < sizeof(target_states) / sizeof(target_states[0]); i++)
-    {
-      if (COORD_TO_NUM(ms.x, ms.y) == target_states[i])
-      {
-        smart_stop();
-        mouseUpdateWall(right_dist < 70 ? 1 : -1, DRIGHT);
-        mouseUpdateWall(left_dist < 70 ? 1 : -1, DLEFT);
-        int8_t *v = getVWalls();
-        int8_t *h = getHWalls();
-        write_walls(h, v);
-        update_target(target_states[i]);
-        setGreenStatus();
-        return 0;
-      }
-    }
+    // for (int i = 0; i < sizeof(target_states) / sizeof(target_states[0]); i++)
+    // {
+    //   if (COORD_TO_NUM(ms.x, ms.y) == target_states[i])
+    //   {
+    //     smart_stop();
+    //     mouseUpdateWall(right_dist < 70 ? 1 : -1, DRIGHT);
+    //     mouseUpdateWall(left_dist < 70 ? 1 : -1, DLEFT);
+    //     int8_t *v = getVWalls();
+    //     int8_t *h = getHWalls();
+    //     write_walls(h, v);
+    //     update_target(target_states[i]);
+    //     setGreenStatus();
+    //     return 0;
+    //   }
+    // }
     // printMaze();
     // build map while we are moving
     int no_left_wall = 0;
@@ -999,7 +1025,10 @@ int explorationRun()
       else
       {
         mouseUpdateWall(-1, DRIGHT);
-        no_right_wall = 1;
+        if (right_dist > 140)
+        {
+          no_right_wall = 1;
+        }
       }
 
       if (left_dist < 70)
@@ -1009,10 +1038,14 @@ int explorationRun()
       else
       {
         mouseUpdateWall(-1, DLEFT);
-        no_left_wall = 1;
+        if (left_dist > 140)
+        {
+          no_left_wall = 1;
+        }
       }
-      if (no_left_wall == 1 || no_right_wall == 1) {
-        smart_stop();
+      if (no_left_wall == 1 || no_right_wall == 1)
+      {
+        // smart_stop();
         greedy_center_turn(mouseGetState(), no_right_wall, no_left_wall);
       }
     }
@@ -1217,7 +1250,7 @@ int main()
   }
   else
   {
-    sleep_ms(1000);
+    sleep_ms(4000);
     print_all();
     setGreenStatus();
     // We also need a run to go back to the start
