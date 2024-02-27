@@ -75,7 +75,7 @@ void write_flash_safe();
 
 void lfprintf(const char *format, ...);
 
-void print_last(int num);
+void print_last(uint32_t num);
 
 void print_all();
 

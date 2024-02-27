@@ -9,7 +9,7 @@
 
 #define MAZE_WIDTH (16)
 #define MAZE_HEIGHT (16)
-#define CELL_WIDHT_MM (180)
+#define CELL_WIDHT_MM (168)
 
 // for absoulte orientation of mouse within maze
 enum orientation {

@@ -1,37 +1,42 @@
 #include "map.h"
 #include "logflash.h"
 
-#define min(a,b) (((a)<(b))?(a):(b))
-#define max(a,b) (((a)>(b))?(a):(b))
-
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 
 int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
 int8_t v_walls[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
 
+int h_walls_visit[MAZE_HEIGHT - 1][MAZE_WIDTH] = {0};
+int v_walls_visit[MAZE_HEIGHT][MAZE_WIDTH - 1] = {0};
 // assumes pos at 0,0 facing right, middle of cell
 state_t g_state = {
     DRIGHT, 0, 0, CELL_WIDHT_MM / 2}; // global micrmomouse state
 
-int8_t* getVWalls() {
+int8_t *getVWalls()
+{
     return (int8_t *)v_walls;
 }
 
-int8_t* getHWalls() {
+int8_t *getHWalls()
+{
     return (int8_t *)h_walls;
 }
 
-void setVWalls(int8_t walls[MAZE_HEIGHT][MAZE_WIDTH - 1]) {
-    memcpy(v_walls, walls, MAZE_HEIGHT*(MAZE_WIDTH - 1));
+void setVWalls(int8_t walls[MAZE_HEIGHT][MAZE_WIDTH - 1])
+{
+    memcpy(v_walls, walls, MAZE_HEIGHT * (MAZE_WIDTH - 1));
 }
 
-void setHWalls(int8_t walls[MAZE_HEIGHT - 1][MAZE_WIDTH]) {
-    memcpy(h_walls, walls, (MAZE_HEIGHT - 1)*MAZE_WIDTH);
+void setHWalls(int8_t walls[MAZE_HEIGHT - 1][MAZE_WIDTH])
+{
+    memcpy(h_walls, walls, (MAZE_HEIGHT - 1) * MAZE_WIDTH);
 }
 
 void printMaze()
 {
     lfprintf("Mouse pos (%d,%d) orientation: %d distance_in_cell_mm:%f\n",
-           g_state.x, g_state.y, g_state.ori, g_state.dist_in_cell_mm);
+             g_state.x, g_state.y, g_state.ori, g_state.dist_in_cell_mm);
     for (int x = 0; x < MAZE_HEIGHT; x++)
     {
         lfprintf("v|");
@@ -77,7 +82,7 @@ int mouseCanGoRight()
 
     int x = g_state.x;
     int y = g_state.y;
-    int facing = g_state.ori ;
+    int facing = g_state.ori;
     switch (facing)
     {
     case ORIGHT:
@@ -120,7 +125,7 @@ int mouseCanGoLeft()
 
     int x = g_state.x;
     int y = g_state.y;
-    int facing = g_state.ori ;
+    int facing = g_state.ori;
 
     switch (facing)
     {
@@ -155,12 +160,20 @@ int mouseCanGoLeft()
 
 void add_bound_h(int x, int y, int8_t confidence)
 {
-    h_walls[x][y] = max(min(h_walls[x][y] + confidence, INT8_MAX), INT8_MIN);
+    if (h_walls_visit[x][y] == 0)
+    {
+        h_walls[x][y] = max(min(h_walls[x][y] + confidence, INT8_MAX), INT8_MIN);
+        h_walls_visit[x][y] = 1;
+    }
 }
 
 void add_bound_v(int x, int y, int8_t confidence)
 {
-    v_walls[x][y] = max(min(v_walls[x][y] + confidence, INT8_MAX), INT8_MIN);
+    if (v_walls_visit[x][y] == 0)
+    {
+        v_walls[x][y] = max(min(v_walls[x][y] + confidence, INT8_MAX), INT8_MIN);
+        v_walls_visit[x][y] = 1;
+    }
 }
 
 // dir -> DLEFT, DRIGHT, Forawrd. Confidence -> [0,1]
@@ -183,17 +196,17 @@ void mouseUpdateWall(int8_t confidence, int dir)
         case DRIGHT:
             if (x == MAZE_HEIGHT - 1)
                 break;
-            add_bound_h(x,y,confidence);
+            add_bound_h(x, y, confidence);
             break;
         case DLEFT:
             if (x - 1 < 0)
                 break; // uhoh
-            add_bound_h(x-1,y,confidence);
+            add_bound_h(x - 1, y, confidence);
             break;
         case DFORWARD:
             if (y == MAZE_WIDTH - 1)
                 break;
-            add_bound_v(x,y,confidence);
+            add_bound_v(x, y, confidence);
             break;
         }
         break;
@@ -203,17 +216,17 @@ void mouseUpdateWall(int8_t confidence, int dir)
         case DRIGHT:
             if (y - 1 < 0)
                 break; // uhoh
-            add_bound_v(x,y-1,confidence);
+            add_bound_v(x, y - 1, confidence);
             break;
         case DLEFT:
             if (y == MAZE_WIDTH - 1)
                 break;
-            add_bound_v(x,y,confidence);
+            add_bound_v(x, y, confidence);
             break;
         case DFORWARD:
             if (x == MAZE_HEIGHT - 1)
                 break;
-            add_bound_h(x,y,confidence);
+            add_bound_h(x, y, confidence);
             break;
         }
         break;
@@ -223,17 +236,17 @@ void mouseUpdateWall(int8_t confidence, int dir)
         case DRIGHT:
             if (x - 1 < 0)
                 break; // uhoh
-            add_bound_h(x-1,y,confidence);
+            add_bound_h(x - 1, y, confidence);
             break;
         case DLEFT:
             if (x == MAZE_HEIGHT - 1)
                 break;
-            add_bound_h(x,y,confidence);
+            add_bound_h(x, y, confidence);
             break;
         case DFORWARD:
             if (y - 1 < 0)
                 break; // uhoh
-            add_bound_v(x,y-1,confidence);
+            add_bound_v(x, y - 1, confidence);
             break;
         }
         break;
@@ -243,17 +256,17 @@ void mouseUpdateWall(int8_t confidence, int dir)
         case DRIGHT:
             if (y == MAZE_WIDTH - 1)
                 break;
-            add_bound_v(x,y,confidence);
+            add_bound_v(x, y, confidence);
             break;
         case DLEFT:
             if (y - 1 < 0)
                 break; // uhoh
-            add_bound_v(x,y-1,confidence);
+            add_bound_v(x, y - 1, confidence);
             break;
         case DFORWARD:
             if (x - 1 < 0)
                 break; // uhoh
-            add_bound_h(x-1,y,confidence);
+            add_bound_h(x - 1, y, confidence);
             break;
         }
     }
@@ -264,11 +277,11 @@ void mouseUpdateDir(int dir)
 {
     if (dir == DRIGHT)
     {
-        g_state.ori = (g_state.ori +1) % 4;
+        g_state.ori = (g_state.ori + 1) % 4;
     }
     else
     {
-        g_state.ori = (g_state.ori +3) % 4;
+        g_state.ori = (g_state.ori + 3) % 4;
     }
     // assume that we are in the moddle of the cell after the turn
     g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
@@ -278,14 +291,16 @@ void mouseUpdateOri(int ori)
 {
     g_state.ori = ori;
     // assume that we are in the moddle of the cell after the turn
-    g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
+    // g_state.dist_in_cell_mm = CELL_WIDHT_MM / 2;
 }
 
 // call this once every iter of control loop?
-int isMouseInDestinationZone() {
-    int first_x_dest = ((int) MAZE_HEIGHT / 2) - 1;
-    int first_y_dest = ((int) MAZE_WIDTH / 2) - 1;
-    if ((g_state.x == first_x_dest || g_state.x == first_x_dest + 1) && (g_state.y == first_y_dest || g_state.y == first_y_dest + 1)) {
+int isMouseInDestinationZone()
+{
+    int first_x_dest = ((int)MAZE_HEIGHT / 2) - 1;
+    int first_y_dest = ((int)MAZE_WIDTH / 2) - 1;
+    if ((g_state.x == first_x_dest || g_state.x == first_x_dest + 1) && (g_state.y == first_y_dest || g_state.y == first_y_dest + 1))
+    {
         return 1;
     }
     return -1;
@@ -296,22 +311,27 @@ void mouseUpdateOdom(float distance_mm)
     // add distance to dist_in_cell_mm
     // while dist >= cell_width
     // update x,y
-    g_state.dist_in_cell_mm += distance_mm;
+    g_state.dist_in_cell_mm += distance_mm * 0.7785;
+    g_state.dist_in_cell_mm = max(g_state.dist_in_cell_mm, 0);
     while (g_state.dist_in_cell_mm > CELL_WIDHT_MM)
     {
         switch (g_state.ori)
         {
         case ORIGHT:
             g_state.y += 1;
+            add_bound_v(g_state.x, g_state.y - 1, -1);
             break;
         case ODOWN:
             g_state.x += 1;
+            add_bound_h(g_state.x - 1, g_state.y, -1);
             break;
         case OLEFT:
             g_state.y -= 1;
+            add_bound_v(g_state.x, g_state.y, -1);
             break;
         case OUP:
             g_state.x -= 1;
+            add_bound_h(g_state.x, g_state.y, -1);
             break;
         }
         g_state.dist_in_cell_mm -= CELL_WIDHT_MM;

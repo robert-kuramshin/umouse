@@ -87,6 +87,10 @@ void moveLeftMotor(int duty, int direction);
 void moveRightMotor(int duty, int direction);
 void goForward(int duty);
 
+int center_x = 8;
+int center_y = 8;
+int running_x = 0;
+int running_y = 0;
 volatile float angle = 0;
 mutex_t m;
 float angle_offset = 0;
@@ -211,7 +215,7 @@ void zeroOdom()
 void updateOdom()
 {
   // update orientation based on heading
-  float dr = min(abs(0 - angle), abs(160 - angle));
+  float dr = min(abs(0 - angle), abs(360 - angle));
   float dd = abs(90 - angle);
   float dl = abs(180 - angle);
   float du = abs(270 - angle);
@@ -233,10 +237,15 @@ void updateOdom()
     mouseUpdateOri(OUP);
   }
   float dist = encoders_distance_traveled();
-  if (right_moving_forward == 0 && left_moving_forward == 0) {
+  if (right_moving_forward == 0 && left_moving_forward == 0)
+  {
+    // printf("Backwards num counts: %2.0f\n", last_odom - dist);
     mouseUpdateOdom(last_odom - dist);
   }
-  else if (right_moving_forward > 0 && left_moving_forward > 0){
+  else if (right_moving_forward > 0 && left_moving_forward > 0)
+  {
+    // printf("Forwards num counts: %2.0f\n", dist - last_odom);
+
     mouseUpdateOdom(dist - last_odom);
   }
   last_odom = dist;
@@ -267,8 +276,7 @@ float last_right_dist = GOALDIST;
 float last_left_dist = GOALDIST;
 void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, float desired_heading)
 {
-  // todo(prasthamdesai): maybe add unstick() call somewhere in here
-  // after testing on maze at comp
+
   float heading;
   float curr_angle = angle;
   if (desired_heading == 0)
@@ -279,7 +287,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
   {
     heading = abs(desired_heading - angle);
   }
-  printf("Distance threshold: %2.0f, front dist: %d, angle_now: %2.0f, saved_angle: %2.0f, desired_angle: %d\n", 80 * (1.0 - heading / 90.0), tof_distance[0], angle, curr_angle, desired_heading);
+  // printf("Distance threshold: %2.0f, front dist: %d, angle_now: %2.0f, saved_angle: %2.0f, desired_angle: %d\n", 80 * (1.0 - heading / 90.0), tof_distance[0], angle, curr_angle, desired_heading);
   if (tof_distance[0] > 12)
   {
     if (!moving)
@@ -384,6 +392,7 @@ void center_logic(uint16_t front_dist, uint16_t right_dist, uint16_t left_dist, 
     {
       sleep_us(1);
     }
+    updateOdom();
     smart_stop();
   }
 }
@@ -639,7 +648,7 @@ void core1_entry()
         if (angle_offset == 0)
         {
           angle_offset = 360 - (k);
-          printf("Angle offset %f, angle %f\n", angle_offset, k);
+          // printf("Angle offset %f, angle %f\n", angle_offset, k);
         }
         // mutex_enter_blocking(&m);
         angle = fmod(k + angle_offset, 360);
@@ -783,7 +792,7 @@ void goLeft()
       right_c = sin((target_quad * 90 + break_dist) * PI / 180);
     }
   }
-  printf("angle %f\n", angle);
+  // printf("angle %f\n", angle);
   printf("done turning\n");
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
   smart_stop();
@@ -827,7 +836,7 @@ void goRight()
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
       turn_right(duty);
     }
-    printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+    // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
   }
   else
   {
@@ -842,7 +851,7 @@ void goRight()
       right_c = sin((target_quad * 90 - break_dist) * PI / 180);
       turn_right(duty);
     }
-    printf("angle %f, while %f > %f\n", angle, left_c, right_c);
+    // printf("angle %f, while %f > %f\n", angle, left_c, right_c);
   }
   printf("angle %f\n", angle);
   printf("done turning\n");
@@ -851,6 +860,78 @@ void goRight()
 
   // zero without updating odom with data from turn
   zeroOdom();
+}
+
+void greedy_center_turn(state_t g_state, int right, int left)
+{
+  if (right == 0 && left == 0) {
+    return;
+  }
+  int x = g_state.x;
+  int y = g_state.y;
+  int facing = g_state.ori;
+  int should_do_right = 0;
+  int should_do_left = 0;
+  switch (facing)
+  {
+  case ORIGHT:
+    if (abs(y + 1 - center_y) >= abs(y - 1 - center_y))
+    {
+      should_do_right = 1;
+    }
+    else
+    {
+      should_do_left = 1;
+    }
+  case ODOWN:
+    if (abs(x + 1 - center_x) >= abs(x - 1 - center_x))
+    {
+      should_do_right = 1;
+    }
+    else
+    {
+      should_do_left = 1;
+    }
+  case OLEFT:
+    if (abs(y + 1 - center_y) >= abs(y - 1 - center_y))
+    {
+      should_do_right = 1;
+    }
+    else
+    {
+      should_do_left = 1;
+    }
+  case OUP:
+    if (abs(x + 1 - center_x) >= abs(x - 1 - center_x))
+    {
+      should_do_right = 1;
+    }
+    else
+    {
+      should_do_left = 1;
+    }
+  }
+
+  if (right == 0 && left == 1) {
+    if (should_do_left == 1) {
+      goLeft();
+      return;
+    }
+  } else if (right == 1 && left == 0) {
+    if (should_do_right == 1) {
+      goRight();
+      return;
+    }
+  } else if (right == 1 && left == 1)
+  {
+    if (should_do_left) {
+      goLeft();
+      return;
+    } else {
+      goRight();
+      return;
+    }
+  }
 }
 
 int last_cell = 0;
@@ -907,6 +988,8 @@ int explorationRun()
     }
     // printMaze();
     // build map while we are moving
+    int no_left_wall = 0;
+    int no_right_wall = 0;
     if (start_cell != curr_cell)
     {
       if (right_dist < 70)
@@ -916,6 +999,7 @@ int explorationRun()
       else
       {
         mouseUpdateWall(-1, DRIGHT);
+        no_right_wall = 1;
       }
 
       if (left_dist < 70)
@@ -925,6 +1009,11 @@ int explorationRun()
       else
       {
         mouseUpdateWall(-1, DLEFT);
+        no_left_wall = 1;
+      }
+      if (no_left_wall == 1 || no_right_wall == 1) {
+        smart_stop();
+        greedy_center_turn(mouseGetState(), no_right_wall, no_left_wall);
       }
     }
     // 80mm ~ pi inches
@@ -957,50 +1046,58 @@ int explorationRun()
       // printf("Go Left (L) or Right (R) ?\n");
       // char next_action = getchar_timeout_us(10 *1000*1000);
 
-      if (mouseCanGoRight() == 1 || tof_distance[1] > 110)
+      // if mouse can go both right and left, go dir that decreases displacement diff
+      if (mouseCanGoRight() == 1 && mouseCanGoLeft() == 1)
       {
-        printf("Going right\n");
-        printf("angle %f\n", angle);
-        // int curr_quad = (int) (angle / 90);
-
-        goRight();
-        // gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        // gpio_put(PICO_DEFAULT_LED_PIN, 0);
-      }
-      else if (mouseCanGoLeft() == 1 || tof_distance[2] > 110)
-      {
-        printf("Going left\n");
-        goLeft();
-        // gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        // gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        greedy_center_turn(mouseGetState(), 1, 1);
       }
       else
       {
-        if (turn_around_counter > 1)
+        if (mouseCanGoRight() == 1 || tof_distance[1] > 110)
         {
-          turn_around_counter = 0;
-          printf("turning around\n");
-          if (tof_distance[1] > tof_distance[2])
-          {
-            // we should turn right;
-            goRight();
-            goRight();
-          }
-          else
-          {
-            // turn left
-            goLeft();
-            goLeft();
-          }
+          printf("Going right\n");
+          printf("angle %f\n", angle);
+          // int curr_quad = (int) (angle / 90);
 
-          smart_stop();
-          mouseUpdateDir(DBACKWARDS);
-          goBackward(40);
-          sleep_ms(750);
+          goRight();
+          // gpio_put(PICO_DEFAULT_LED_PIN, 1);
+          // gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        }
+        else if (mouseCanGoLeft() == 1 || tof_distance[2] > 110)
+        {
+          printf("Going left\n");
+          goLeft();
+          // gpio_put(PICO_DEFAULT_LED_PIN, 1);
+          // gpio_put(PICO_DEFAULT_LED_PIN, 0);
         }
         else
         {
-          turn_around_counter++;
+          if (turn_around_counter > 1)
+          {
+            turn_around_counter = 0;
+            printf("turning around\n");
+            if (tof_distance[1] > tof_distance[2])
+            {
+              // we should turn right;
+              goRight();
+              goRight();
+            }
+            else
+            {
+              // turn left
+              goLeft();
+              goLeft();
+            }
+
+            smart_stop();
+            mouseUpdateDir(DBACKWARDS);
+            goBackward(40);
+            sleep_ms(750);
+          }
+          else
+          {
+            turn_around_counter++;
+          }
         }
       }
       start_cell = ms.x * MAZE_HEIGHT + ms.y;
@@ -1112,7 +1209,6 @@ int main()
   encoders_register_callbacks();
 
   // print_last(100);
-
   if (!solved)
   {
     setYellowStatus();
@@ -1121,6 +1217,8 @@ int main()
   }
   else
   {
+    sleep_ms(1000);
+    print_all();
     setGreenStatus();
     // We also need a run to go back to the start
 
