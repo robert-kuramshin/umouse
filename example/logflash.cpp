@@ -9,7 +9,6 @@
 
 #include "map.h"
 
-
 page_t *page_a;
 page_t *page_b;
 page_t *active_page;
@@ -23,10 +22,12 @@ const char *flash_target_contents = (const char *) (XIP_BASE + FLASH_LOG_START_O
 
 void update_header(void *)
 {
-    // uint32_t ints = save_and_disable_interrupts();
+#ifdef LOG_H_DEBUG
+    printf("writing header write_page:%ld, target: %ld\n",g_header.write_page_num, g_header.target);
+#endif
+
     flash_range_erase(FLASH_LOG_HEADER_OFFSET, FLASH_SECTOR_SIZE);
     flash_range_program(FLASH_LOG_HEADER_OFFSET, (const uint8_t *) &g_header, FLASH_PAGE_SIZE);
-    // restore_interrupts (ints);
 }
 
 void update_target(int target)
@@ -87,13 +88,18 @@ void write_flash(void *)
     // swap active (for now just dump to flash)
     size_t flash_write_addr =  FLASH_LOG_START_OFFSET + g_header.write_page_num * FLASH_PAGE_SIZE;
     // at sector boundry erase the nearest sector(4096 bytes - 16 pages) before writing
-    // if ((flash_write_addr % FLASH_SECTOR_SIZE) == 0)
-    // {
+    if ((flash_write_addr % FLASH_SECTOR_SIZE) == 0)
+    {
         flash_range_erase((flash_write_addr / FLASH_SECTOR_SIZE) * FLASH_SECTOR_SIZE, FLASH_SECTOR_SIZE);
-    // }
+    }
     flash_range_program(flash_write_addr, (const uint8_t *)active_page, FLASH_PAGE_SIZE);
     g_header.write_page_num =  (g_header.write_page_num + 1) % NUM_PAGES;
     update_header(NULL);
+}
+
+void write_flash_safe()
+{
+    flash_safe_execute(write_flash,NULL, 1000);
 }
 
 // write to in memory page buffer
@@ -114,7 +120,7 @@ void lfprintf(const char *format, ...)
     // try to write to active buffer
     size_t used = active_page->size;
     char* write_addr = (char *) &(active_page->data) + used;
-    int remaining = PAGE_DATA_SIZE - used;
+    int remaining = PAGE_DATA_SIZE - used - 1;
 #ifdef LOG_H_DEBUG
     printf("page num: %ld\n",g_header.write_page_num);
     printf("used: %d\n",used);
@@ -122,7 +128,7 @@ void lfprintf(const char *format, ...)
 #endif
     int res = vsnprintf(write_addr, remaining, format, args2);
     va_end(args2);
-    if (res > remaining)
+    if (res >= remaining)
     {
         *write_addr = '\0'; // cut out the portion of the message written
 #ifdef LOG_H_DEBUG
@@ -148,7 +154,7 @@ void print_all()
     while (page_num != g_header.write_page_num)
     {
 #ifdef LOG_H_DEBUG
-        printf("testing page %d\n",page_num);
+        printf("testing page %ld\n",page_num);
 #endif
         page = (page_t *)(flash_target_contents + page_num * FLASH_PAGE_SIZE);
         if (page->magic != PAGE_MAGIC) {
@@ -156,7 +162,7 @@ void print_all()
             continue;
         }
 #ifdef LOG_H_DEBUG
-        printf("Reading page num %d from addr %p, size %ld\n", page_num, page, page->size);
+        printf("Reading page num %ld from addr %p, size %ld\n", page_num, page, page->size);
 #endif
         printf(page->data);
         page_num = (page_num + 1) % NUM_PAGES;
@@ -176,7 +182,7 @@ void print_last(uint32_t num)
     while (page_num != g_header.write_page_num)
     {
 #ifdef LOG_H_DEBUG
-        printf("testing page %d\n",page_num);
+        printf("testing page %ld\n",page_num);
 #endif
         page = (page_t *)(flash_target_contents + page_num * FLASH_PAGE_SIZE);
         if (page->magic != PAGE_MAGIC) {
@@ -184,7 +190,7 @@ void print_last(uint32_t num)
             continue;
         }
 #ifdef LOG_H_DEBUG
-        printf("Reading page num %d from addr %p, size %ld\n", page_num, page, page->size);
+        printf("Reading page num %ld from addr %p, size %ld\n", page_num, page, page->size);
 #endif
         printf(page->data);
         page_num = (page_num + 1) % NUM_PAGES;
@@ -221,10 +227,8 @@ int init_log_flash()
 }
 
 void erase_all() {
-    uint32_t ints = save_and_disable_interrupts();
     // erase 1mB starting at 1mB
     flash_range_erase(FLASH_LOG_HEADER_OFFSET, FLASH_LOG_HEADER_OFFSET);
-    restore_interrupts (ints);
     g_header.magic = LOG_BUFFER_MAGIC;
     g_header.write_page_num = 0;
     g_header.target = -1;

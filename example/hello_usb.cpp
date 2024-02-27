@@ -872,7 +872,19 @@ int explorationRun()
   int start_cell = -1;
   while (true)
   {
+    if (gpio_get(BUTTON_PIN) == 0)
+    {
+      write_flash_safe();
+
+      // force debounce
+      setGreenStatus();
+      sleep_ms(500);
+      setRedStatus();
+      sleep_ms(500);
+      setGreenStatus();
+    }
     int k = unstick();
+
     updateOdom();
     state_t ms = mouseGetState();
     uint16_t right_dist = tof_distance[1];

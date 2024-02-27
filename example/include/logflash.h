@@ -71,6 +71,8 @@ int read_walls(int8_t h_walls[MAZE_HEIGHT - 1][MAZE_WIDTH], int8_t v_walls[MAZE_
 
 void write_walls(int8_t *h_walls, int8_t *v_walls);
 
+void write_flash_safe();
+
 void lfprintf(const char *format, ...);
 
 void print_last(int num);

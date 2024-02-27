@@ -12,14 +12,14 @@
 
 int main() {
     stdio_init_all();
-    if (cyw43_arch_init()) {
-        printf("Wi-Fi init failed");
-        return -1;
-    }
+    // if (cyw43_arch_init()) {
+    //     printf("Wi-Fi init failed");
+    //     return -1;
+    // }
 
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    // cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(250);
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+    // cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(250);
 
     sleep_ms(5000);
@@ -90,6 +90,7 @@ int main() {
             cur_size = min_size;
         }
     }
+    write_flash_safe();
     rtc_get_datetime(&t);
     datetime_to_str(datetime_str, sizeof(datetime_buf), &t);
     printf("%s\n",datetime_str);
